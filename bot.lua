@@ -217,11 +217,13 @@ table.map = function(list, f)
 	return newList
 end
 
-table.keys = function(list)
+table.keys = function(list, f)
 	local out, counter = { }, 0
-	for k in next, list do
-		counter = counter + 1
-		out[counter] = k
+	for k, v in next, list do
+		if not f or f(k, v) then
+			counter = counter + 1
+			out[counter] = k
+		end
 	end
 	return out
 end
@@ -459,7 +461,7 @@ local mapCategories = {
 }
 
 -- Commands
-local chatHelpSource, whisperHelpSource, serverHelpSource
+local chatHelpSource, whisperHelpSource, memberHelpSource
 local commandWrapper, chatCommand, whisperCommand, serverCommand
 do
 	local help = function(src, param, level, prefix)
@@ -471,10 +473,10 @@ do
 				param = string.sub(param, 2)
 			end
 
-			local cmdList = (level == 0 and chatCommand or level == 1 and whisperCommand or level == 2 and serverCommand)
+			local cmdList = (level == 0 and chatCommand or level == 1 and whisperCommand or (level == 2 or level == 3) and serverCommand)
 			if commandWrapper[param] then
 				return "'" .. prefix .. param .. "' → " .. tostring(commandWrapper[param])
-			elseif cmdList[param] then
+			elseif cmdList[param] and (level ~= 3 or cmdList[param].pb) then
 				return "'" .. prefix .. param .. "' → " .. tostring(cmdList[param])
 			end
 			return "Command '" .. prefix .. param .. "' not found. :s"
@@ -649,9 +651,11 @@ do
 	}
 	serverCommand = {
 		["help"] = {
+			pb = true,
 			h = "Displays the available commands / the commands descriptions.",
 			f = function(message, parameters)
-				message:reply((string.gsub(help(serverHelpSource, parameters, 2, '/'), '\'', '`')))
+				local isPb = (message.channel.category.id ~= "544935544975786014")
+				message:reply((string.gsub(help((isPb and serverHelpSource or memberHelpSource), parameters, (isPb and 3 or 2), '/'), '\'', '`')))
 			end
 		},
 		["who"] = {
@@ -740,7 +744,7 @@ do
 		},
 		["xml"] = {
 			pb = true,
-			h = "Gets the XML of the map specified.",
+			h = "Gets the XML of the map specified. [<@&462329326600192010> role is required]",
 			f = function(message, parameters)
 				if not message.member:hasRole("462329326600192010") then
 					return message:reply("<@" .. message.author.id .. ">, you must have the role <@&462329326600192010> in order to use this command!")
@@ -797,9 +801,11 @@ end
 
 chatHelpSource = table.fuse(table.keys(chatCommand), table.keys(commandWrapper))
 whisperHelpSource = table.fuse(table.keys(whisperCommand), table.keys(commandWrapper))
-serverHelpSource = table.keys(serverCommand)
+memberHelpSource = table.keys(serverCommand)
+serverHelpSource = table.keys(serverCommand, function(k, v) return v.pb end)
 table.sort(chatHelpSource)
 table.sort(whisperHelpSource)
+table.sort(memberHelpSource)
 table.sort(serverHelpSource)
 do
 	local setMeta = function(src)
@@ -882,6 +888,8 @@ disc:once("ready", function()
 	for member in settingchannel.memberList:getMessages():iter() do
 		setHelper(member.content)
 	end
+
+	disc:setGame("Prefix /")
 
 	timer.setTimeout(25 * 1000, function()
 		if isConnected then return end
