@@ -361,22 +361,18 @@ do
 		return out
 	end
 
+	local dressRoomTags = { 's', 'h', 'y', 'e', 'm', 'n', 'd', 't', 'c', "hd" }
 	dressroomLink = function(look)
 		look = getLook(look)
 		local url = "https://projects.fewfre.com/a801/transformice/dressroom/?"
 
 		local data, uri = {
-			{ 's', look[1] },
-			{ 'h', look[2].id, look[2].colors },
-			{ 'y', look[3].id, look[3].colors },
-			{ 'e', look[4].id, look[4].colors },
-			{ 'm', look[5].id, look[5].colors },
-			{ 'n', look[6].id, look[6].colors },
-			{ 'd', look[7].id, look[7].colors },
-			{ 't', look[8].id, look[8].colors },
-			{ 'c', look[9].id, look[9].colors },
-			{ "hd", look[10].id, look[10].colors }
+			{ dressRoomTags[1], look[1] }
 		}, { }
+		for i = 2, #dressRoomTags do
+			data[i] = { dressRoomTags[i], look[i].id, look[i].colors }
+		end
+
 		local counter, colors = 0
 		for i = 1, #data do
 			if data[i][2] > 0 then
@@ -696,7 +692,7 @@ do
 			h = "Displays the room list of official modules",
 			f = function(message)
 				modulesCmd[message.channel.id] = true
-				tfm.main:send({ 26, 35 }, transfromage.byteArray:new():writeByte(18))
+				tfm.main:send({ 26, 35 }, transfromage.byteArray:new():write8(18))
 			end
 		},
 		["refresh"] = {
@@ -1176,13 +1172,13 @@ tfm:on("time", protect(function(time)
 end))
 
 tfm:insertReceiveFunction(26, 35, protect(function(self, connection, packet, C_CC) -- Gets the room list of modules
-	for i = 1, packet:readByte() do packet:readByte() end -- Room types
+	for i = 1, packet:read8() do packet:read8() end -- Room types
 
-	if packet:readByte() == 18 then -- Modules
+	if packet:read8() == 18 then -- Modules
 		local moduleList, counter = { }, 0
 		while true do
-			if packet:readByte() == 0 then break end -- Not official module counter
-			packet:readByte() -- Commu
+			if packet:read8() == 0 then break end -- Not official module counter
+			packet:read8() -- Commu
 			counter = counter + 1
 			moduleList[counter] = { packet:readUTF(), tonumber(packet:readUTF()) }
 			packet:readUTF() -- mmj
