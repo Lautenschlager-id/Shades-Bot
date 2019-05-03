@@ -2,6 +2,7 @@
 local CHAR_LIM = 255
 local CHAT_MSG_LIM = 2
 local WHISPER_MSG_LIM = 3
+local ANTI_SPAM_TIME = 8
 local DATA = { }
 do
 	local counter, account = 0, io.open("acc", 'r')
@@ -41,6 +42,7 @@ local settingchannel = {
 	discussion = "544935729508253717",
 	memberList = "544936174544748587"
 }
+local categoryId = "544935544975786014"
 
 local helper = { }
 local isConnected = false
@@ -53,6 +55,7 @@ local modList, mapcrewList = { }, { }
 local timeCmd = { }
 local modulesCmd = { }
 local xml = { queue = { } }
+local userCache = { }
 
 -- Functions
 do
@@ -331,6 +334,11 @@ local createListCommand = function(code)
 	end
 end
 
+local getCommunityCode = function(playerCommunity)
+	local commu = transfromage.enum.chatCommunity(playerCommunity)
+	return (commu ~= "az" and commu ~= "ch" and commu ~= "sk") and commu or "int"
+end
+
 -- Command Functions
 do
 	local sendWhisper = tfm.sendWhisper
@@ -537,12 +545,14 @@ do
 
 	commandWrapper = { -- param, target, isChatCommand
 		["luadoc"] = {
+			link = true,
 			h = "Sends a link of the Transformice Lua Documentation.",
 			f = function()
 				return "Lua documentation: https://atelier801.com/topic?f=5&t=451587&p=1#m3"
 			end
 		},
 		["faq"] = {
+			link = true,
 			h = "Displays the FAQ thread of a community. ',faq community'",
 			f = function(param)
 				if param then
@@ -556,6 +566,7 @@ do
 			end
 		},
 		["apply"] = {
+			link = true,
 			h = "Displays the application form link of a Transformice official team. ',apply team_name'",
 			f = function(param)
 				if param then
@@ -601,7 +612,7 @@ do
 				end
 			end
 		},
-		["members"] = {
+		["shelpers"] = {
 			h = "Displays the Shades Helpers that are online on Discord.",
 			f = function(isDebugging, playerName)
 				local online, counter = { }, 0
@@ -613,7 +624,7 @@ do
 				end
 				table.sort(online)
 
-				local t = (#online == 0 and "No Shades Helpers online. :(" or ("Online Shades Helpers: " .. table.concat(online, ", ")))
+				local t = (#online == 0 and "No Shades Helpers online on Discord. :(" or ("Online Shades Helpers on Discord: " .. table.concat(online, ", ")))
 				if isDebugging then
 					return t
 				else
@@ -622,6 +633,7 @@ do
 			end
 		},
 		["dressroom"] = {
+			link = true,
 			h = "Sends a link of your/someone's outfit. Accepts a nickname parameter.",
 			f = function(isDebugging, playerName, parameters)
 				if parameters and #parameters > 2 then
@@ -638,6 +650,7 @@ do
 		["fashionsquad"] = c_fs,
 		["funcorp"] = c_fc,
 		["makebot"] = {
+			link = true,
 			h = "Displays the URLs of the bot APIs.",
 			f = function(isDebugging, playerName)
 				local t = "Use one of our marvelous APIs to make your bot. Languages: Lua → github.com/Lautenschlager-id/Transfromage | Python → github.com/Tocutoeltuco/transfromage | Python Async → github.com/Athesdrake/aiotfm. Support → discord.gg/quch83R"
@@ -654,7 +667,7 @@ do
 			pb = true,
 			h = "Displays the available commands / the commands descriptions.",
 			f = function(message, parameters)
-				local isPb = (message.channel.category.id ~= "544935544975786014")
+				local isPb = (message.channel.category and message.channel.category.id ~= categoryId)
 				message:reply((string.gsub(help((isPb and serverHelpSource or memberHelpSource), parameters, (isPb and 3 or 2), '/'), '\'', '`')))
 			end
 		},
@@ -746,7 +759,7 @@ do
 			pb = true,
 			h = "Gets the XML of the map specified. [<@&462329326600192010> role is required]",
 			f = function(message, parameters)
-				if not message.member:hasRole("462329326600192010") then
+				if (message.channel.category and message.channel.category.id ~= categoryId) and not message.member:hasRole("462329326600192010") then
 					return message:reply("<@" .. message.author.id .. ">, you must have the role <@&462329326600192010> in order to use this command!")
 				end
 
@@ -836,12 +849,23 @@ local getCommandParameters = function(message, prefix)
 	return (command and string.lower(command)), parameters
 end
 
+local userAntiSpam = function(src, playerName)
+	if src.link then
+		local time = os.time()
+		if (userCache[playerName] and userCache[playerName] > time) then
+			return "Wow, " .. playerName .. "; Hold on, cowboy! Don't spam me with commands."
+		else
+			userCache[playerName] = time + ANTI_SPAM_TIME
+		end
+	end
+end
+
 local executeCommand = function(isChatCommand, content, target, playerName, isDebugging)
 	local returnValue
 	local cmd, param = getCommandParameters(content)
 
 	if commandWrapper[cmd] then
-		returnValue = commandWrapper[cmd](param, target, isChatCommand)
+		returnValue = userAntiSpam(commandWrapper[cmd], target) or commandWrapper[cmd](param, target, isChatCommand)
 		if returnValue then
 			if isChatCommand or isDebugging then
 				tfm:sendChatMessage(target, returnValue)
@@ -853,7 +877,7 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 	else
 		if isChatCommand then
 			if chatCommand[cmd] then
-				returnValue = chatCommand[cmd](target, playerName, param)
+				returnValue = userAntiSpam(chatCommand[cmd], playerName) or chatCommand[cmd](target, playerName, param)
 				if returnValue then
 					tfm:sendChatMessage(target, returnValue)
 				end
@@ -861,7 +885,7 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 			end
 		else
 			if whisperCommand[cmd] then
-				returnValue = whisperCommand[cmd](isDebugging, playerName, param)
+				returnValue = userAntiSpam(whisperCommand[cmd], playerName) or whisperCommand[cmd](isDebugging, playerName, param)
 				if returnValue then
 					if isDebugging then
 						tfm:sendChatMessage(target, returnValue)
@@ -1034,7 +1058,8 @@ tfm:on("chatMessage", protect(function(channelName, playerName, message, playerC
 	p(channelName, playerName, message, playerCommunity)
 
 	playerName = string.toNickname(playerName)
-	local content = string.format("[%s] [%s] [%s] %s", os.date("%H:%M"), string.upper(transfromage.enum.chatCommunity(playerCommunity) or "INT"), playerName, message)
+
+	local content = string.format("[%s] [%s] [%s] %s", os.date("%H:%M"), getCommunityCode(playerCommunity), playerName, message)
 	content = formatReceiveText(content)
 
 	object[channelName]:send(content)
@@ -1052,7 +1077,7 @@ tfm:on("whisperMessage", protect(function(playerName, message, playerCommunity)
 		lastUserReply = playerName
 	end
 
-	local content = string.format("%s [%s] [%s] [%s%s] %s", (isBot and '<' or '>'), os.date("%H:%M"), string.upper(transfromage.enum.chatCommunity(playerCommunity) or "XX"), playerName, ((isBot and lastUserWhispered) and (" → " .. lastUserWhispered) or ''), message)
+	local content = string.format("%s [%s] [%s] [%s%s] %s", (isBot and '<' or '>'), os.date("%H:%M"), getCommunityCode(playerCommunity), playerName, ((isBot and lastUserWhispered) and (" → " .. lastUserWhispered) or ''), message)
 	content = formatReceiveText(content)
 
 	object.whisper:send(content)
@@ -1235,7 +1260,7 @@ tfm:on("newGame", protect(function(map)
 		timer.clearTimeout(xml[map.code].timer)
 
 		if #map.xml <= 23000 then
-			local err, ead, body = false
+			local err, head, body = false
 			if xml[map.code]._xmlOnly then
 				head, body = http.request("POST", "https://hastebin.com/documents", nil, map.xml)
 
@@ -1321,5 +1346,6 @@ tfm:on("newGame", protect(function(map)
 end))
 
 -- Initialize
+tfm:setCommunity(transfromage.enum.community.ch)
 disc:run(DATA[5])
 DATA[5] = nil
