@@ -56,6 +56,7 @@ local timeCmd = { }
 local modulesCmd = { }
 local xml = { queue = { } }
 local userCache = { }
+local profile = { }
 
 -- Functions
 do
@@ -709,10 +710,10 @@ do
 			h = "Displays the room list of official modules",
 			f = function(message)
 				modulesCmd[message.channel.id] = true
-				tfm.main:send({ 26, 35 }, transfromage.byteArray:new():write8(18))
+				tfm:requestRoomList(transfromage.enum.roomMode.module)
 			end
 		},
-		["refresh"] = {
+		["bolo"] = {
 			h = "[Admin only] Refreshes #bolodefchoco→\3*Editeur",
 			f = function(message)
 				if message.author.id == disc.owner.id then
@@ -809,6 +810,19 @@ do
 		["moduleteam"] = c_mt,
 		["fashionsquad"] = c_fs,
 		["funcorp"] = c_fc,
+		["tfmprofile"] = {
+			pb = true,
+			h = "Displays the profile of an user in real time. (User required to be online)",
+			f = function(message, parameters)
+				if parameters and #parameters > 2 then
+					parameters = string.toNickname(parameters, true)
+					profile[parameters] = message.channel.id
+					tfm:sendCommand("profile " .. parameters)
+				else
+					message:reply("Invalid nickname '" .. parameters .. "'")
+				end
+			end
+		},
 	}
 end
 
@@ -1096,10 +1110,33 @@ tfm:on("profileLoaded", protect(function(data)
 		end
 
 		dressroom[data.playerName] = nil
+	elseif profile[data.playerName] then
+		disc:getChannel(profile[data.playerName]):send({
+			embed = {
+				color = 0x2E565F,
+				title = "<:tfm_cheese:458404666926039053> Transformice Profile - " .. data.playerName .. (data.gender == 2 and " <:male:456193580155928588>" or data.gende == 1 and " <:female:456193579308679169>" or ''),
+				description =
+					":calendar: " .. os.date("%d/%m/%Y", data.registrationDate) .. 
+					"\n\n**Level " .. data.level .. "**" ..
+					"\n**Adventure points :** " .. data.adventurePoints .. "\n" ..
+					(data.role > 0 and ("\n**Role :** " .. string.gsub(transfromage.enum.role(data.role), "%a", string.upper, 1) .. "\n") or '') .. 
+					((data.tribeName and data.tribeName ~= '') and ("\n<:tribe:458407729736974357> **Tribe :** " .. data.tribeName) or '') ..
+					--"\n```\n" .. data.titleId .. "```" ..
+					"\n<:shaman:512015935989612544> " .. data.saves.normal .. " / " .. data.saves.hard .. " / " .. data.saves.divine ..
+					"\n<:tfm_cheese:458404666926039053> **Shaman cheese :** " .. data.shamanCheese ..
+					"\n\n<:racing:512016668038266890> **Firsts :** " .. data.firsts ..
+					"\n<:tfm_cheese:458404666926039053> **Cheeses :** " .. data.cheeses ..
+					"\n\n<:bootcamp:512017071031451654> **Bootcamps :** " .. data.bootcamps ..
+					((data.soulmate and data.soulmate ~= '') and ("\n\n:revolving_hearts: **" .. string.toNickname(data.soulmate) .. "**") or '') ..
+					"\n\n<:dance:468937918115741718> **[Outfit](" .. dressroomLink(data.look) .. ")**",
+				thumbnail = { url = "http://avatars.atelier801.com/" .. (data.id % 10000) .. "/" .. data.id .. ".jpg" }
+			}
+		})
+		profile[data.playerName] = nil
 	end
 end))
 
-tfm:insertReceiveFunction(6, 9, protect(function(self, connection, packet, C_CC) -- Chat message from #bolodefchoco.*\3Editeur
+tfm:insertPacketListener(6, 9, protect(function(self, connection, packet, C_CC) -- Chat message from #bolodefchoco.*\3Editeur
 	local text = packet:readUTF()
 	local team, missing, content = string.match(text, "^(%S+) (%d) (.+)")
 	missing = tonumber(missing)
@@ -1204,54 +1241,47 @@ tfm:on("time", protect(function(time)
 	timeCmd = { }
 end))
 
-tfm:insertReceiveFunction(26, 35, protect(function(self, connection, packet, C_CC) -- Gets the room list of modules
-	for i = 1, packet:read8() do packet:read8() end -- Room types
+tfm:on("roomList", protect(function(roomMode, rooms, pinned)
+	if roomMode ~= transfromage.enum.roomMode.module then return end
 
-	if packet:read8() == 18 then -- Modules
-		local moduleList, counter = { }, 0
-		while true do
-			if packet:read8() == 0 then break end -- Not official module counter
-			packet:read8() -- Commu
-			counter = counter + 1
-			moduleList[counter] = { packet:readUTF(), tonumber(packet:readUTF()) }
-			packet:readUTF() -- mmj
-			packet:readUTF() -- m #module
-		end
-		table.sort(moduleList, function(m1, m2) return m1[2] > m2[2] end)
+	local totalModules, f = #pinned
+	local halfModules = math.ceil(totalModules / 2)
 
-		local totalModules, f = #moduleList
-		local halfModules = math.ceil(totalModules / 2)
+	for i = 1, totalModules do
+		pinned[i].totalPlayers = tonumber(pinned[i].totalPlayers) or -666 -- It's UTF
+	end
 
-		local fields = { { }, { } }
-		for i = 1, totalModules do
-			f = (i <= halfModules and 1 or 2)
-			fields[f][#fields[f] + 1] = "**" .. moduleList[i][1] .. "**\t`" .. moduleList[i][2] .. "`"
-		end
+	table.sort(pinned, function(m1, m2) return m1.totalPlayers > m2.totalPlayers end)
 
-		local message = {
-			embed = {
-				color = 0x36393F,
-				title = "Total modules: **" .. totalModules .. "**",
-				fields = {
-					[1] = {
-						name = '‌',
-						value = table.concat(fields[1], '\n'),
-						inline = true
-					},
-					[2] = {
-						name = '‌',
-						value = table.concat(fields[2], '\n'),
-						inline = true
-					}
+	local fields = { { }, { } }
+	for i = 1, totalModules do
+		f = (i <= halfModules and 1 or 2)
+		fields[f][#fields[f] + 1] = "**" .. pinned[i].name .. "**\t`" .. pinned[i].totalPlayers .. "`"
+	end
+
+	local message = {
+		embed = {
+			color = 0x36393F,
+			title = "Total modules: **" .. totalModules .. "**",
+			fields = {
+				[1] = {
+					name = '‌',
+					value = table.concat(fields[1], '\n'),
+					inline = true
+				},
+				[2] = {
+					name = '‌',
+					value = table.concat(fields[2], '\n'),
+					inline = true
 				}
 			}
 		}
+	}
 
-		for channel in next, modulesCmd do
-			disc:getChannel(channel):send(message)
-		end
-		modulesCmd = { }
+	for channel in next, modulesCmd do
+		disc:getChannel(channel):send(message)
 	end
+	modulesCmd = { }	
 end))
 
 tfm:on("newGame", protect(function(map)
@@ -1346,6 +1376,6 @@ tfm:on("newGame", protect(function(map)
 end))
 
 -- Initialize
-tfm:setCommunity(transfromage.enum.community.ch)
+tfm:setCommunity(transfromage.enum.community.sk)
 disc:run(DATA[5])
 DATA[5] = nil
