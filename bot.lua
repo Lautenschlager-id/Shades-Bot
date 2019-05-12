@@ -813,7 +813,7 @@ do
 		["funcorp"] = c_fc,
 		["tfmprofile"] = {
 			pb = true,
-			h = "Displays the profile of an user in real time. (User required to be online)",
+			h = "Displays the profile of a user in real time. (User required to be online)",
 			f = function(message, parameters)
 				if parameters and #parameters > 2 then
 					parameters = string.toNickname(parameters, true)
@@ -1052,13 +1052,15 @@ tfm:once("connection", protect(function()
 	end
 
 	-- Get title list
-	local counter, male, female = 0
 	local _, body = http.request("GET", "http://transformice.com/langues/tfz_en")
 	body = require("miniz").inflate(body, 1) -- Decompress
+
+	local male, female
 	for titleId, titleName in string.gmatch(body, "¤T_(%d+)=([^¤]+)") do
 		titleId = tonumber(titleId)
 
 		titleName = string.gsub(titleName, "<.->", '') -- Removes HTML
+		titleName = string.gsub(titleName, "[%*%_~]", "\\%1") -- Escape special characters
 		if string.find(titleName, '|', nil, true) then -- Male / Female
 			-- Male version
 			male = string.gsub(titleName, "%((.-)|.-%)", function(s) return s end)
@@ -1067,7 +1069,6 @@ tfm:once("connection", protect(function()
 
 			titleName = { male, female } -- id % 2 + 1
 		end
-		counter = counter + 1
 		title[titleId] = titleName
 	end
 end))
@@ -1153,7 +1154,7 @@ tfm:on("profileLoaded", protect(function(data)
 
 					"\n\n<:racing:512016668038266890> **Firsts :** " .. data.firsts ..
 					"\n<:tfm_cheese:458404666926039053> **Cheeses :** " .. data.cheeses ..
-					"\n\n<:bootcamp:512017071031451654> **Bootcamps :** " .. data.bootcamps ..
+					"\n<:bootcamp:512017071031451654> **Bootcamps :** " .. data.bootcamps ..
 
 					"\n\n<:dance:468937918115741718> **[Outfit](" .. dressroomLink(data.look) .. ")**\n\n" ..
 
