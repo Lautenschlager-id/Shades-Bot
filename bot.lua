@@ -48,6 +48,7 @@ local helper = { }
 local isConnected = false
 local isWorking = false
 local lastServerPing, lastUserReply, lastUserWhispered
+local title = { }
 
 local dressroom = { }
 local onlinePlayers = { }
@@ -241,7 +242,7 @@ do
 	end
 
 	splitMsgByWord = function(user, msg, maxMsgs)
-		user = (user and ("[" .. user  .. "] ") or '')
+		user = (user and ("[" .. user .. "] ") or '')
 
 		local maxLen = CHAR_LIM - #user
 		local messages = { }
@@ -1049,6 +1050,26 @@ tfm:once("connection", protect(function()
 			tfm:joinChat(chat)
 		end
 	end
+
+	-- Get title list
+	local counter, male, female = 0
+	local _, body = http.request("GET", "http://transformice.com/langues/tfz_en")
+	body = require("miniz").inflate(body, 1) -- Decompress
+	for titleId, titleName in string.gmatch(body, "¤T_(%d+)=([^¤]+)") do
+		titleId = tonumber(titleId)
+
+		titleName = string.gsub(titleName, "<.->", '') -- Removes HTML
+		if string.find(titleName, '|', nil, true) then -- Male / Female
+			-- Male version
+			male = string.gsub(titleName, "%((.-)|.-%)", function(s) return s end)
+			-- Female version
+			female = string.gsub(titleName, "%(.-|(.-)%)", function(s) return s end)
+
+			titleName = { male, female } -- id % 2 + 1
+		end
+		counter = counter + 1
+		title[titleId] = titleName
+	end
 end))
 
 tfm:once("joinTribeHouse", protect(function()
@@ -1101,7 +1122,7 @@ end))
 
 tfm:on("profileLoaded", protect(function(data)
 	if dressroom[data.playerName] then
-		local look =  data.playerName .. "'s outfit: " .. dressroomLink(data.look)
+		local look = data.playerName .. "'s outfit: " .. dressroomLink(data.look)
 
 		if dressroom[data.playerName].isDebugging then
 			object.shadestest:send(formatReceiveText(look))
@@ -1111,24 +1132,35 @@ tfm:on("profileLoaded", protect(function(data)
 
 		dressroom[data.playerName] = nil
 	elseif profile[data.playerName] then
+		local title = (type(title[data.titleId]) == "table" and title[data.titleId][(data.gender % 2 + 1)] or title[data.titleId])
 		disc:getChannel(profile[data.playerName]):send({
 			embed = {
 				color = 0x2E565F,
-				title = "<:tfm_cheese:458404666926039053> Transformice Profile - " .. data.playerName .. (data.gender == 2 and " <:male:456193580155928588>" or data.gende == 1 and " <:female:456193579308679169>" or ''),
+				title = "<:tfm_cheese:458404666926039053> Transformice Profile - " .. data.playerName .. (data.gender == 2 and " <:male:456193580155928588>" or data.gender == 1 and " <:female:456193579308679169>" or ''),
 				description =
+					(data.role > 0 and ("**Role :** " .. string.gsub(transfromage.enum.role(data.role), "%a", string.upper, 1) .. "\n\n") or '') ..
+
+					((data.soulmate and data.soulmate ~= '') and (":revolving_hearts: **" .. string.toNickname(data.soulmate) .. "**\n") or '') ..
 					":calendar: " .. os.date("%d/%m/%Y", data.registrationDate) .. 
-					"\n\n**Level " .. data.level .. "**" ..
-					"\n**Adventure points :** " .. data.adventurePoints .. "\n" ..
-					(data.role > 0 and ("\n**Role :** " .. string.gsub(transfromage.enum.role(data.role), "%a", string.upper, 1) .. "\n") or '') .. 
 					((data.tribeName and data.tribeName ~= '') and ("\n<:tribe:458407729736974357> **Tribe :** " .. data.tribeName) or '') ..
-					--"\n```\n" .. data.titleId .. "```" ..
-					"\n<:shaman:512015935989612544> " .. data.saves.normal .. " / " .. data.saves.hard .. " / " .. data.saves.divine ..
+
+					"\n\n**Level " .. data.level .. "**" ..
+					"\n**Current Title :** «" .. (title or data.titleId) .. "»" ..
+					"\n**Adventure points :** " .. data.adventurePoints ..
+
+					"\n\n<:shaman:512015935989612544> " .. data.saves.normal .. " / " .. data.saves.hard .. " / " .. data.saves.divine ..
 					"\n<:tfm_cheese:458404666926039053> **Shaman cheese :** " .. data.shamanCheese ..
+
 					"\n\n<:racing:512016668038266890> **Firsts :** " .. data.firsts ..
 					"\n<:tfm_cheese:458404666926039053> **Cheeses :** " .. data.cheeses ..
 					"\n\n<:bootcamp:512017071031451654> **Bootcamps :** " .. data.bootcamps ..
-					((data.soulmate and data.soulmate ~= '') and ("\n\n:revolving_hearts: **" .. string.toNickname(data.soulmate) .. "**") or '') ..
-					"\n\n<:dance:468937918115741718> **[Outfit](" .. dressroomLink(data.look) .. ")**",
+
+					"\n\n<:dance:468937918115741718> **[Outfit](" .. dressroomLink(data.look) .. ")**\n\n" ..
+
+					"<:wheel:456198795768889344> **Total titles :** " .. data.totalTitles ..
+					"\n<:wheel:456198795768889344> **Total badges :** " .. data.totalBadges ..
+					"\n<:wheel:456198795768889344> **Total cartouches :** " .. data.totalOrbs
+				,
 				thumbnail = { url = "http://avatars.atelier801.com/" .. (data.id % 10000) .. "/" .. data.id .. ".jpg" }
 			}
 		})
@@ -1281,7 +1313,7 @@ tfm:on("roomList", protect(function(roomMode, rooms, pinned)
 	for channel in next, modulesCmd do
 		disc:getChannel(channel):send(message)
 	end
-	modulesCmd = { }	
+	modulesCmd = { }
 end))
 
 tfm:on("newGame", protect(function(map)
