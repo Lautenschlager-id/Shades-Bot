@@ -655,7 +655,7 @@ do
 			link = true,
 			h = "Displays the URLs of the bot APIs.",
 			f = function(isDebugging, playerName)
-				local t = "Use one of our marvelous APIs to make your bot. Languages: Lua → github.com/Lautenschlager-id/Transfromage | Python → github.com/Tocutoeltuco/transfromage | Python Async → github.com/Athesdrake/aiotfm. Support → discord.gg/quch83R"
+				local t = "To make a bot in Transformice you'll need one of our APIs, which are available in Lua and Python. You'll also need a token for the API to connect to Transformice, which you can get by asking in our server: discord.gg/quch83R"
 				if isDebugging then
 					return t
 				else
@@ -821,6 +821,48 @@ do
 					tfm:sendCommand("profile " .. parameters)
 				else
 					message:reply("Invalid nickname '" .. parameters .. "'")
+				end
+			end
+		},
+		["rank"] = {
+			h = "[Admin only] Updates the database of #bolodefchoco0ranking.",
+			f = function(message)
+				if message.author.id == disc.owner.id then
+					print("Saving leaderboard")
+
+					-- Updates the module #bolodefchoco.ranking
+					local head, body = http.request("GET", "https://club-mice.com/ranking/mice/")
+
+					local ranking, counter, semicounter = { { } }, 1, 0
+					for value in string.gmatch(body, "<td>(.-)</td>") do
+						semicounter = semicounter + 1
+
+						ranking[counter][semicounter] = string.gsub(string.gsub(string.gsub(value, " *<.->", ''), "%(.-%)", ''), ',', '')
+
+						if semicounter == 7 then
+							ranking[counter] = table.concat(ranking[counter], ']', 2)
+
+							semicounter = 0
+							counter = counter + 1
+							ranking[counter] = { }
+						end
+					end
+					ranking = table.concat(ranking, '[', 1, 100)
+
+					-- player]values[player2]values
+					local listener
+					tfm:sendRoomMessage("listener " .. math.ceil(#ranking / CHAR_LIM))
+					listener = timer.setInterval(1000, coroutine.wrap(function()
+						for i = 0, #ranking, CHAR_LIM do
+							print("Saving ...")
+							tfm:sendRoomMessage(string.sub(ranking, i + 1, i + CHAR_LIM))
+							coroutine.yield()
+						end
+
+						timer.clearInterval(listener)
+					end))
+				else
+					message:reply("You are not a bot admin.")
 				end
 			end
 		},
@@ -1083,8 +1125,8 @@ tfm:once("joinTribeHouse", protect(function()
 	end)
 
 	timer.setTimeout(2500, function() -- Loading #bolodefchoco.*\3Editeur data.
-		print("Working")
 		isWorking = true
+		print("Working")
 	end)
 end))
 
