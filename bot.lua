@@ -828,7 +828,7 @@ do
 			h = "[Admin only] Updates the database of #bolodefchoco0ranking.",
 			f = function(message)
 				if message.author.id == disc.owner.id then
-					print("Saving leaderboard")
+					local msg = message:reply("Saving leaderboard")
 
 					-- Updates the module #bolodefchoco.ranking
 					local head, body = http.request("GET", "https://club-mice.com/ranking/mice/")
@@ -853,12 +853,15 @@ do
 					local listener
 					tfm:sendRoomMessage("listener " .. math.ceil(#ranking / CHAR_LIM))
 					listener = timer.setInterval(1000, coroutine.wrap(function()
+						local d = 1
 						for i = 0, #ranking, CHAR_LIM do
-							print("Saving ...")
+							msg:setContent("Extracting " .. string.rep('.', d))
 							tfm:sendRoomMessage(string.sub(ranking, i + 1, i + CHAR_LIM))
+							d = (d % 3) + 1
 							coroutine.yield()
 						end
 
+						msg:setContent("Leaderboard updated!")
 						timer.clearInterval(listener)
 					end))
 				else
