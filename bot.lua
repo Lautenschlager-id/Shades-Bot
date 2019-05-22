@@ -30,7 +30,7 @@ local tfm = transfromage.client:new()
 
 -- Data
 local object = { }
-local channel = transfromage.enum._enum({
+local channel = transfromage.enum({
 	-- Message
 	help = "544935946290987009",
 	lua = "544936074237968434",
@@ -40,7 +40,10 @@ local channel = transfromage.enum._enum({
 })
 local settingchannel = {
 	discussion = "544935729508253717",
-	memberList = "544936174544748587"
+	memberList = "544936174544748587",
+}
+local miscChannels = {
+	transfromage_tokens = "579687024219389954"
 }
 local categoryId = "544935544975786014"
 
@@ -59,41 +62,63 @@ local xml = { queue = { } }
 local userCache = { }
 local profile = { }
 
+local mapCategories = {
+	default = { "<:ground:506477349966053386>", 0x90B214 },
+	[0] = { "<:p0:563096585982967808>", 0xE0DBCC, "Normal" },
+	[1] = { "<:p1:563096585257615360>", 0xECB140, "Protected" },
+	[3] = { "<:bootcamp:512017071031451654>", 0x575F24, "Bootcamp" },
+	[4] = { "<:shaman:512015935989612544>", 0x94D8D5, "Shaman" },
+	[5] = { "<:p5:468937377981923339>", 0xBA3D13, "Art" },
+	[6] = { "<:p6:563096586394140682>", 0x908B86, "Mechanism" },
+	[7] = { "<:racing:512016668038266890>", 0xE8E8E8, "No-shaman" },
+	[8] = { "<:p8:563096583856586757>", 0x9585AC, "Dual shaman" },
+	[9] = { "<:tfm_cheese:458404666926039053>", 0xFDD599, "Miscellaneous" },
+	[10] = { "<:p10:563096585966452746>", 0x1B1919, "Survivor" },
+	[11] = { "<:p11:565931891849428992>", 0xAA4444, "Vampire" },
+	[17] = { "<:p17:565931895662051330>", 0xCC4F3A, "Racing" },
+	[18] = { "<:p18:565931898858242074>", 0x73B32D, "Defilante" },
+	[19] = { "<:p19:565931896979324958>", 0xD0CBCD, "Music" },
+	[22] = { "<:tribe:458407729736974357>", 0x8B6C4E, "Tribe House" },
+	[24] = { "<:p24:563098653036773389>", 0x1B1919, "Dual Shaman Survivor" },
+	[43] = { "<:p44:563096584741585049>", 0xF40000, "High Deleted" },
+	[44] = { "<:p44:563096584741585049>", 0xF40000, "Deleted" }
+}
+
 -- Functions
 do
 	local err = error
 	error = function(msg, lvl)
-		return coroutine.wrap(function(msg, lvl)
-			if isWorking then
-				disc:getChannel('546429085451288577'):send("<@" .. disc.owner.id .. ">, disconnected.\n```\n" .. msg .. "```")
+		coroutine.wrap(function()
+			if lvl == transfromage.enum.errorLevel.low then
+				disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, low level error.\n```\n" .. msg .. "```")
+			else
+				disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, disconnected with high level error.\n```\n" .. msg .. "```")
+				err(msg, lvl)
 			end
-			return err(msg, lvl)
-		end)(msg, lvl)
+		end)
 	end
 end
 local protect = function(f)
 	return function(...)
-		return coroutine.wrap(function(...)
-			local success, err = pcall(f, ...)
-			if not success then
-				object.shadestest:send({
-					content = "<@" .. disc.owner.id .. ">",
-					embed = {
-						color = 0xFFAA00,
-						title = "Error",
-						description = "```\n" .. err .. "```",
-						fields = {
-							[1] = {
-								name = "Traceback",
-								value = "```\n" .. debug.traceback() .. "```",
-								inline = false
-							}
-						},
-						timestamp = discordia.Date():toISO()
-					}
-				})
-			end
-		end)(...)
+		local success, err = pcall(f, ...)
+		if not success then
+			object.shadestest:send({
+				content = "<@" .. disc.owner.id .. ">",
+				embed = {
+					color = 0xFFAA00,
+					title = "Error",
+					description = "```\n" .. err .. "```",
+					fields = {
+						[1] = {
+							name = "Traceback",
+							value = "```\n" .. debug.traceback() .. "```",
+							inline = false
+						}
+					},
+					timestamp = discordia.Date():toISO()
+				}
+			})
+		end
 	end
 end
 
@@ -160,7 +185,7 @@ local formatReceiveText = function(str)
 				value = string.match(word, "^https?://[%w]+%..+")
 				if value then
 					--if http.request("GET", value) then
-						return value
+					return value
 					--end
 				end
 			end
@@ -448,28 +473,6 @@ do
 	end
 end
 
-local mapCategories = {
-	default = { "<:ground:506477349966053386>", 0x90B214 },
-	[0] = { "<:p0:563096585982967808>", 0xE0DBCC, "Normal" },
-	[1] = { "<:p1:563096585257615360>", 0xECB140, "Protected" },
-	[3] = { "<:bootcamp:512017071031451654>", 0x575F24, "Bootcamp" },
-	[4] = { "<:shaman:512015935989612544>", 0x94D8D5, "Shaman" },
-	[5] = { "<:p5:468937377981923339>", 0xBA3D13, "Art" },
-	[6] = { "<:p6:563096586394140682>", 0x908B86, "Mechanism" },
-	[7] = { "<:racing:512016668038266890>", 0xE8E8E8, "No-shaman" },
-	[8] = { "<:p8:563096583856586757>", 0x9585AC, "Dual shaman" },
-	[9] = { "<:tfm_cheese:458404666926039053>", 0xFDD599, "Miscellaneous" },
-	[10] = { "<:p10:563096585966452746>", 0x1B1919, "Survivor" },
-	[11] = { "<:p11:565931891849428992>", 0xAA4444, "Vampire" },
-	[17] = { "<:p17:565931895662051330>", 0xCC4F3A, "Racing" },
-	[18] = { "<:p18:565931898858242074>", 0x73B32D, "Defilante" },
-	[19] = { "<:p19:565931896979324958>", 0xD0CBCD, "Music" },
-	[22] = { "<:tribe:458407729736974357>", 0x8B6C4E, "Tribe House" },
-	[24] = { "<:p24:563098653036773389>", 0x1B1919, "Dual Shaman Survivor" },
-	[43] = { "<:p44:563096584741585049>", 0xF40000, "High Deleted" },
-	[44] = { "<:p44:563096584741585049>", 0xF40000, "Deleted" }
-}
-
 -- Commands
 local chatHelpSource, whisperHelpSource, memberHelpSource
 local commandWrapper, chatCommand, whisperCommand, serverCommand
@@ -693,7 +696,7 @@ do
 		},
 		["mapcrew"] = {
 			pb = true,
-			h = "Displays the list of online Mapcrews.",
+			h = "Displays the list of online Mapcrew.",
 			f = function(message)
 				mapcrewList[message.channel.id] = true
 				tfm:sendCommand("mapcrew")
@@ -732,7 +735,7 @@ do
 				if not parameters then return end
 				parameters = string.toNickname(parameters, true)
 				tfm:sendRoomMessage(parameters .. " get_user " .. parameters)
-				onlinePlayers[parameters] = message.channel
+				onlinePlayers[parameters] = message.channel.id
 			end
 		},
 		["map"] = {
@@ -768,12 +771,16 @@ do
 				serverCommand["map"].f(message, parameters, true)
 			end
 		},
-		["clearxml"] = {
-			h = "[Admin only] Clears the cache of the XML table.",
+		["clear"] = {
+			h = "[Admin only] Clears the cache of the tables.",
 			f = function(message)
 				if message.author.id == disc.owner.id then
 					message:reply("Clearing cache")
 					xml = { queue = { } }
+					onlinePlayers = { }
+					for k, v in next, srcMemberListCmd do
+						v._queue = { }
+					end
 				else
 					message:reply("You are not a bot admin.")
 				end
@@ -850,20 +857,8 @@ do
 					ranking = table.concat(ranking, '[', 1, 100)
 
 					-- player]values[player2]values
-					local listener
-					tfm:sendRoomMessage("listener " .. math.ceil(#ranking / CHAR_LIM))
-					listener = timer.setInterval(1000, coroutine.wrap(function()
-						local d = 1
-						for i = 0, #ranking, CHAR_LIM do
-							msg:setContent("Extracting " .. string.rep('.', d))
-							tfm:sendRoomMessage(string.sub(ranking, i + 1, i + CHAR_LIM))
-							d = (d % 3) + 1
-							coroutine.yield()
-						end
-
-						msg:setContent("Leaderboard updated!")
-						timer.clearInterval(listener)
-					end))
+					tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(666):writeUTF(ranking)) -- Calls eventTextAreaCallback
+					msg:setContent("Leaderboard updated!")
 				else
 					message:reply("You are not a bot admin.")
 				end
@@ -977,7 +972,7 @@ disc:once("ready", function()
 
 	timer.setTimeout(25 * 1000, function()
 		if isConnected then return end
-		return error("[Heartbeat] Failed to connect.")
+		return error("[Heartbeat] Failed to connect.", transfromage.enum.errorLevel.high)
 	end)
 	protect(tfm.start)(tfm, DATA[3], DATA[4])
 	DATA[3], DATA[4] = nil, nil
@@ -1082,7 +1077,7 @@ tfm:on("ping", protect(function()
 	if lastServerPing then
 		timer.clearTimeout(lastServerPing)
 	end
-	lastServerPing = timer.setTimeout(22 * 1000, error, "[Ping] Lost connection.")
+	lastServerPing = timer.setTimeout(22 * 1000, error, "[Ping] Lost connection.", transfromage.enum.errorLevel.high)
 end))
 
 tfm:once("connection", protect(function()
@@ -1179,7 +1174,7 @@ tfm:on("profileLoaded", protect(function(data)
 		dressroom[data.playerName] = nil
 	elseif profile[data.playerName] then
 		local title = (type(title[data.titleId]) == "table" and title[data.titleId][(data.gender % 2 + 1)] or title[data.titleId])
-		disc:getChannel(profile[data.playerName]):send({
+		disc:getChannel(profile[data.playerName]):send((profile[data.playerName] == miscChannels.transfromage_tokens and ("<:wheel:456198795768889344> **" .. data.playerName .. "'s ID :** " .. data.id) or ({
 			embed = {
 				color = 0x2E565F,
 				title = "<:tfm_cheese:458404666926039053> Transformice Profile - " .. data.playerName .. (data.gender == 2 and " <:male:456193580155928588>" or data.gender == 1 and " <:female:456193579308679169>" or ''),
@@ -1205,16 +1200,18 @@ tfm:on("profileLoaded", protect(function(data)
 
 					"<:wheel:456198795768889344> **Total titles :** " .. data.totalTitles ..
 					"\n<:wheel:456198795768889344> **Total badges :** " .. data.totalBadges ..
-					"\n<:wheel:456198795768889344> **Total cartouches :** " .. data.totalOrbs
+					"\n<:wheel:456198795768889344> **Total cartouches :** " .. data.totalOrbs ..
+
+					"\n\n<:wheel:456198795768889344> **ID :** " .. data.id
 				,
 				thumbnail = { url = "http://avatars.atelier801.com/" .. (data.id % 10000) .. "/" .. data.id .. ".jpg" }
 			}
-		})
+		})))
 		profile[data.playerName] = nil
 	end
 end))
 
-tfm:insertPacketListener(6, 9, protect(function(self, connection, packet, C_CC) -- Chat message from #bolodefchoco.*\3Editeur
+tfm:insertPacketListener(6, 9, protect(function(self, packet, connection, C_CC) -- Chat message from #bolodefchoco.*\3Editeur
 	local text = packet:readUTF()
 	local team, missing, content = string.match(text, "^(%S+) (%d) (.+)")
 	missing = tonumber(missing)
@@ -1222,7 +1219,7 @@ tfm:insertPacketListener(6, 9, protect(function(self, connection, packet, C_CC) 
 	if team then
 		if onlinePlayers[team] then
 			local isOnline = json.decode(content).isOnline
-			onlinePlayers[team]:send((isOnline and "<:online:456197711356755980>" or "<:offline:456197711457419276>") .. team .. " is " .. (isOnline and "on" or "off") .. "line!")
+			disc:getChannel(onlinePlayers[team]):send((isOnline and "<:online:456197711356755980>" or "<:offline:456197711457419276>") .. team .. " is " .. (isOnline and "on" or "off") .. "line!")
 			onlinePlayers[team] = nil
 			return
 		end
@@ -1281,11 +1278,11 @@ tfm:on("staffList", protect(function(list)
 			isMod = true
 			return "**Online Moderators:**"
 		elseif line == "MapcrewEnLigne" then
-			return "**Online Mapcrews:**"
+			return "**Online Mapcrew:**"
 		elseif line == "ModoPasEnLigne" then
 			return "**No Moderators online.**"
 		elseif line == "MapcrewPasEnLigne" then
-			return "**No Mapcrews online.**"
+			return "**No Mapcrew online.**"
 		end
 	end)
 
@@ -1324,10 +1321,6 @@ tfm:on("roomList", protect(function(roomMode, rooms, pinned)
 
 	local totalModules, f = #pinned
 	local halfModules = math.ceil(totalModules / 2)
-
-	for i = 1, totalModules do
-		pinned[i].totalPlayers = tonumber(pinned[i].totalPlayers) or -666 -- It's UTF
-	end
 
 	table.sort(pinned, function(m1, m2) return m1.totalPlayers > m2.totalPlayers end)
 
