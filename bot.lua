@@ -42,7 +42,7 @@ local settingchannel = {
 	discussion = "544935729508253717",
 	memberList = "544936174544748587",
 }
-local miscChannels = {
+local miscChannel = {
 	transfromage_tokens = "579687024219389954"
 }
 local categoryId = "544935544975786014"
@@ -51,10 +51,9 @@ local helper = { }
 local isConnected = false
 local isWorking = false
 local lastServerPing, lastUserReply, lastUserWhispered
-local title = { }
 
 local dressroom = { }
-local onlinePlayers = { }
+local onlinePlayer = { }
 local modList, mapcrewList = { }, { }
 local timeCmd = { }
 local modulesCmd = { }
@@ -62,7 +61,7 @@ local xml = { queue = { } }
 local userCache = { }
 local profile = { }
 
-local mapCategories = {
+local mapCategory = {
 	default = { "<:ground:506477349966053386>", 0x90B214 },
 	[0] = { "<:p0:563096585982967808>", 0xE0DBCC, "Normal" },
 	[1] = { "<:p1:563096585257615360>", 0xECB140, "Protected" },
@@ -83,6 +82,117 @@ local mapCategories = {
 	[43] = { "<:p44:563096584741585049>", 0xF40000, "High Deleted" },
 	[44] = { "<:p44:563096584741585049>", 0xF40000, "Deleted" }
 }
+
+local translate = setmetatable({
+	en = {
+		-- Help
+		hdoc = "Sends the link of the Transformice Lua Documentation.",
+		faq = "Sends the link of the FAQ thread of a community.",
+		commu = "community",
+		happ = "Sends the application form link of a Transformice official team.",
+		team = "team_name",
+		help = "Displays the available commands / the commands descriptions.",
+		info = "Displays cool bot informations.",
+		helper = "Displays the Shades Helpers that are online on Discord.",
+		dress = "Sends a link of your/someone's outfit. Accepts a nickname as parameter.",
+		mt = "Displays the online public Module Team members.",
+		fs = "Displays the online public Fashion Squad members.",
+		fc = "Displays the online Funcorp members.",
+		make = "Shows how to make a bot with Transfromage.",
+		nocmd = "Command '%s' not found. :s", -- Name
+		hlist = "Type '%s command_name' to learn more. Available Commands → %s", -- "help"
+		-- Data
+		doc = "Lua documentation: %s", -- URL
+		nofaq = "This community doesn't have a FAQ yet. :(",
+		acommu = "Available communities → %s", -- List
+		app = "Apply to '%s': %s", -- Name, URL
+		noapp = "The requested team was not found. :(",
+		ateam = "Available teams → %s", -- List
+		nohelp = "Whisper me with ',%s' to get the command list.", -- "help"
+		about = "I'm a bot from the '%s' server ( %s ), maintained by %s. Shades Helpers is a group intended to help everyone, mostly about modules, lua, and technical stuff.", -- Name, URL, Name
+		nohelper = "No Shades Helpers online on Discord. :(",
+		onhelper = "Online Shades Helpers on Discord: %s",
+		dmake = "To make a bot in Transformice you'll need: - one of our APIs, which are available in Lua and Python; - a token for the API to connect to Transformice. You can get it all by asking in our server: %s", -- URL
+		-- Extra
+		outfit = "%s's outfit: %s", -- Name, URL
+		onteam = "Online%s members: %s", -- Name of the team (prefixed with a space), List
+		noteam = "No%s online members.", -- Name of the team (prefixed with a space)
+		spam = "Wow, %s; Hold on, cowboy! Don't spam me with commands." -- Name
+	},
+	br = {
+		hdoc = "Envia o link para a documentação Lua do Transformice.",
+		faq = "Envia o link do tópico FAQ de uma comunidade.",
+		commu = "comunidade",
+		happ = "Envia o link de um formulário de aplicação de uma equipe oficial do Transformice.",
+		team = "nome_equipe",
+		help = "Mostra os comandos disponíveis / a descrição dos comandos.",
+		info = "Mostra informações legais do bot.",
+		helper = "Mostra os Shades Helpers que estão online no Discord.",
+		dress = "Envia um link com seu visual, ou o de algum jogador. Aceita um nickname como parâmetro.",
+		mt = "Mostra os membros públicos online da Module Team.",
+		fs = "Mostra os membros públicos online da Fashion Squad.",
+		fc = "Mostra os membros online da Funcorp.",
+		make = "Mostra como fazer um bot com Transfromage.",
+		nocmd = "Comando '%s' não encontrado. :s",
+		hlist = "Digite '%s nome_commando' para ler mais. Comandos disponíveis → %s",
+		doc = "Documentação Lua: %s",
+		nofaq = "Essa comunidade ainda não tem uma FAQ. :(",
+		acommu = "Comunidades disponíveis → %s",
+		app = "Aplique para '%s': %s",
+		noapp = "A equipe pedida não foi encontrada. :(",
+		ateam = "Equipes disponíveis → %s",
+		nohelp = "Me cochiche com ',%s' para obter a lista de comandos.",
+		about = "Sou um bot do servidor '%s' ( %s ), mantido por %s. Shades Helpers é um grupo com a intenção de ajudar todo mundo, especialmente sobre módulos, lua e coisas técnicas.",
+		nohelper = "Não há Shades Helpers online no Discord. :(",
+		onhelper = "Shades Helpers Online no Discord: %s",
+		dmake = "Para fazer um bot no Transformice será necessário: - uma de nossas APIs, disponível em Lua e Python; - um token para a API se conectar ao Transformice; Você pode conseguir isso tudo em nosso server: %s",
+		outfit = "Visual de %s: %s",
+		onteam = "Membros online da%s: %s",
+		noteam = "Não há membros online da%s.",
+		spam = "Wow, %s; Calma aí, parceiro! Não me spame com comandos."
+	},
+	es = {
+		hdoc = "Envía la dirección de la Documentación de Lua de Transformice",
+		faq = "Muestra el tema de FAQ de una comunidad.",
+		commu = "comunidad",
+		happ = "Muestra el formulario de inscripción al equipo oficial de Transformice.",
+		team = "nombre_equipo",
+		help = "Muestra los comandos disponibles / las descripciones de los comandos.",
+		info = "Muestra información genial del bot.",
+		helper = "Muestra los Shades Helpers en línea en Discord.",
+		dress = "Envía la dirección del aspecto de ti o de alguien. Acepta el nombre de usuario como parámetro.",
+		mt = "Muestra los miembros en línea del Module Team.",
+		fs = "Muestra los miembros en línea del Fashion Squad.",
+		fc = "Muestra a los miembros en línea del Funcorp.",
+		make = "Muestra como hacer un bot con Transfromage.",
+		nocmd = "No se ha encontrado el comando '%s'. :s",
+		hlist = "Escribe '%s nombre_comando' para saber más. Comandos Disponibles → %s",
+		doc = "Documentación de Lua: %s",
+		nofaq = "Esta comunidad no tiene FAQ todavía. :(",
+		acommu = "Comunidades disponibles → %s",
+		app = "Envía una solicitud para '%s': %s",
+		noapp = "El equipo solicitado no ha sido encontrado. :(",
+		ateam = "Equipos disponibles → %s",
+		nohelp = "Susúrrame ',%s' para ver la lista de comandos.",
+		about = "Soy un bot del servidor '%s' ( %s ), mantenido por %s. Shades Helpers es un grupo con la intención de ayudar a todos, mayormente sobre módulos, lua, y cosas técnicas.",
+		nohelper = "No hay ningún Shade Helper en línea en Discord. :(",
+		onhelper = "Shades Helpers en línea en Discord: %s",
+		dmake = "Para crear un bot en Transformice necesitarás: - una de nuestras APIs, disponibles en Lua y en Python; - un token para que la API se conecte a Transformice; Puedes obtenerlo preguntando en nuestro servidor: %s",
+		outfit = "Aspecto de %s: %s",
+		onteam = "Miembros del%s en línea: %s",
+		noteam = "No hay miembros del%s en línea.",
+		spam = "Wow, %s; ¡Espera, cowboy! No me spamees con comandos."
+	}
+}, {
+	__call = function(this, community, str, ...)
+		community = community and this[community] or this.en
+
+		str = string.gsub(str, "%$(%w+)", function(line)
+			return community[line] or this.en[line] or ("$" .. line)
+		end)
+		return string.format(str, ...)
+	end
+})
 
 -- Functions
 do
@@ -328,21 +438,34 @@ local createListCommand = function(code)
 	local src = {
 		_loading = '',
 		_timer = 0,
-		_onlineMembers = '',
+		_onlineMembers = setmetatable({ state = 0, data = '', team = '' }, {
+			__call = function(this, language)
+				if this.state == 0 then
+					return translate(language, "$noteam", this.team)
+				elseif this.state == 1 then
+					return translate(language, "$onteam", this.team, this.data)
+				else
+					return "$ERROR State=" .. tostring(this.state)
+				end
+			end
+		}),
 		_queue = { }
 	}
 	srcMemberListCmd[name] = src
 
-	return function(isDebugging, playerName, param)
-		local isServerCmd = type(isDebugging) == "table"
+	return function(playerCommunity, isDebugging, playerName, param)
+		local isServerCmd = type(playerCommunity) == "table"
+		if isServerCmd then
+			playerCommunity, isDebugging, playerName, param = "en", playerCommunity, isDebugging, playerName
+		end
 
 		local request = false
 		if src._loading == '' then
 			if src._timer > os.time() then
 				if isServerCmd then
-					return isDebugging:reply(formatServerText(src._onlineMembers))
+					return isDebugging:reply(formatServerText(src._onlineMembers(playerCommunity)))
 				else
-					return src._onlineMembers
+					return src._onlineMembers(playerCommunity)
 				end
 			else
 				request = true
@@ -353,7 +476,7 @@ local createListCommand = function(code)
 			param = playerName
 			playerName = nil
 		end
-		src._queue[#src._queue + 1] = { playerName = playerName, isDebugging = isDebugging, param = param, isServerCmd = isServerCmd }
+		src._queue[#src._queue + 1] = { playerName = playerName, isDebugging = isDebugging, param = param, isServerCmd = isServerCmd, language = playerCommunity }
 
 		if request then
 			tfm:sendRoomMessage(name .. " get_team" .. code)
@@ -477,7 +600,8 @@ end
 local chatHelpSource, whisperHelpSource, memberHelpSource
 local commandWrapper, chatCommand, whisperCommand, serverCommand
 do
-	local help = function(src, param, level, prefix)
+	local help = function(src, param, level, language, prefix)
+		language = language or "en"
 		prefix = prefix or ','
 
 		if param then
@@ -488,13 +612,13 @@ do
 
 			local cmdList = (level == 0 and chatCommand or level == 1 and whisperCommand or (level == 2 or level == 3) and serverCommand)
 			if commandWrapper[param] then
-				return "'" .. prefix .. param .. "' → " .. tostring(commandWrapper[param])
+				return "'" .. prefix .. param .. "' → " .. translate(language, tostring(commandWrapper[param]))
 			elseif cmdList[param] and (level ~= 3 or cmdList[param].pb) then
-				return "'" .. prefix .. param .. "' → " .. tostring(cmdList[param])
+				return "'" .. prefix .. param .. "' → " .. translate(language, tostring(cmdList[param]))
 			end
-			return "Command '" .. prefix .. param .. "' not found. :s"
+			return translate(language, "$nocmd", prefix .. param)
 		end
-		return "Type '" .. prefix .. "help command_name' to learn more. Available Commands → '" .. prefix .. table.concat(src, ("' | '" .. prefix)) .. "'"
+		return translate(language, "$hlist", prefix .. "help", "'" .. prefix .. table.concat(src, ("' | '" .. prefix)) .. "'")
 	end
 
 	local faqThread = {
@@ -520,7 +644,8 @@ do
 	faqThread.SA = faqThread.AR
 
 	local teams = {
-		mt = { "Module Team", "https://goo.gl/ZJcnhZ" }
+		mt = { "Module Team", "https://goo.gl/ZJcnhZ" },
+		fs = { "Fashion Squad", "http://bit.ly/2I1FY4d" }
 	}
 	local teamAliases = { }
 	-- MT
@@ -530,75 +655,79 @@ do
 	teamAliases.luateam = "mt"
 	teamAliases.luadev = "mt"
 	teamAliases.dev = "mt"
+	-- FS
+	teamAliases.fashionsquad = "fs"
+	teamAliases["fashion squad"] = "fs"
+	teamAliases.fashion = "fs"
 
 	-- Whisper, Server
 	local c_mt = {
 		pb = true,
-		h = "Displays the online public module team members.",
+		h = "$mt",
 		f = createListCommand(" module_team")
 	}
 	local c_fs = {
 		pb = true,
-		h = "Displays the online public fashion squad members.",
+		h = "$fs",
 		f = createListCommand(" fashion_squad")
 	}
 	local c_fc = {
 		pb = true,
-		h = "Displays the online public funcorp members.",
+		h = "$fc",
 		f = createListCommand(" funcorp")
 	}
 
-	commandWrapper = { -- param, target, isChatCommand
+	commandWrapper = { -- playerCommunity, param, target, isChatCommand
 		["luadoc"] = {
 			link = true,
-			h = "Sends a link of the Transformice Lua Documentation.",
+			h = "$hdoc",
 			f = function()
-				return "Lua documentation: https://atelier801.com/topic?f=5&t=451587&p=1#m3"
+				return translate(playerCommunity, "$doc", "https://atelier801.com/topic?f=5&t=451587&p=1#m3")
 			end
 		},
 		["faq"] = {
 			link = true,
-			h = "Displays the FAQ thread of a community. ',faq community'",
-			f = function(param)
+			h = "$faq ',faq $commu'",
+			f = function(playerCommunity, param)
 				if param then
 					param = string.upper(param)
-					return faqThread[param] or "This community doesn't have a FAQ yet. :("
+					return faqThread[param] or translate(playerCommunity, "$nofaq")
 				else
-					return "Available communities → " .. table.concat(table.map(faqThread, function(_, key)
+					return translate(playerCommunity, "$acommu", table.concat(table.map(faqThread, function(_, key)
 						return key
-					end), " | ")
+					end), " | "))
 				end
 			end
 		},
 		["apply"] = {
 			link = true,
-			h = "Displays the application form link of a Transformice official team. ',apply team_name'",
-			f = function(param)
+			h = "$happ ',apply $team'",
+			f = function(playerCommunity, param)
 				if param then
 					param = string.lower(param)
 					local d = teams[param] or (teamAliases[param] and teams[teamAliases[param]])
-					return (d and ("Apply to '" .. d[1] .. "': " .. d[2]) or "The requested team was not found. :(")
+					return (d and translate(playerCommunity, "$app", d[1], d[2]) or translate(playerCommunity, "$noapp"))
 				else
-					return "Available teams → " .. table.concat(table.map(teams, function(value)
+					return translate(playerCommunity, "$ateam", table.concat(table.map(teams, function(value)
 						return value[1]
-					end), " | ")
+					end), " | "))
 				end
 			end
 		}
 	}
-	chatCommand = { -- target, playerName, param
+	chatCommand = { -- playerCommunity, target, playerName, param
 		["help"] = {
-			h = "Displays the available commands / the commands descriptions.",
-			f = function(channelName, _, parameters)
-				tfm:sendChatMessage(channelName, "Whisper me with ',help' to get the command list.")
+			h = "$help",
+			f = function(playerCommunity, channelName, _, parameters)
+				tfm:sendChatMessage(channelName, translate(playerCommunity, "$nohelp", "help"))
 			end
 		}
 	}
-	whisperCommand = { -- isDebugging(4 #shadestest), playerName, Param
+	whisperCommand = { -- playerCommunity, isDebugging(4 #shadestest), playerName, Param
 		["help"] = {
-			h = "Displays the available commands / the commands descriptions.",
-			f = function(isDebugging, playerName, parameters)
-				local t = help(whisperHelpSource, parameters, 1)
+			h = "$help",
+			f = function(playerCommunity, isDebugging, playerName, parameters)
+				local t = help(whisperHelpSource, parameters, 1, playerCommunity)
 				if isDebugging then
 					return t
 				else
@@ -607,9 +736,9 @@ do
 			end
 		},
 		["about"] = {
-			h = "Displays cool bot informations.",
-			f = function(isDebugging, playerName)
-				local t = "I'm a bot from the 'Fifty Shades of Lua' server ( discord.gg/quch83R ), maintained by Bolodefchoco#0000. We are not from the \"Helpers\" team, but a separated group intended to help everyone, mostly about modules, lua, and technical stuff."
+			h = "$info",
+			f = function(playerCommunity, isDebugging, playerName)
+				local t = translate(playerCommunity, "$about", "Fifty Shades of Lua", "discord.gg/quch83R", "Bolodefchoco#0000")
 				if isDebugging then
 					return t
 				else
@@ -618,8 +747,8 @@ do
 			end
 		},
 		["shelpers"] = {
-			h = "Displays the Shades Helpers that are online on Discord.",
-			f = function(isDebugging, playerName)
+			h = "$helper",
+			f = function(playerCommunity, isDebugging, playerName)
 				local online, counter = { }, 0
 				for member in settingchannel.discussion.members:findAll(function(member) return member.status ~= "offline" end) do
 					if helper[member.id] then
@@ -629,7 +758,7 @@ do
 				end
 				table.sort(online)
 
-				local t = (#online == 0 and "No Shades Helpers online on Discord. :(" or ("Online Shades Helpers on Discord: " .. table.concat(online, ", ")))
+				local t = (#online == 0 and translate(playerCommunity, "$nohelper") or translate(playerCommunity, "$onhelper", table.concat(online, ", ")))
 				if isDebugging then
 					return t
 				else
@@ -639,15 +768,15 @@ do
 		},
 		["dressroom"] = {
 			link = true,
-			h = "Sends a link of your/someone's outfit. Accepts a nickname parameter.",
-			f = function(isDebugging, playerName, parameters)
+			h = "$dress",
+			f = function(playerCommunity, isDebugging, playerName, parameters)
 				if parameters and #parameters > 2 then
 					parameters = string.toNickname(parameters)
 				else
 					parameters = playerName
 				end
 
-				dressroom[parameters] = { playerName = playerName, isDebugging = isDebugging }
+				dressroom[parameters] = { playerName = playerName, isDebugging = isDebugging, playerCommunity = playerCommunity }
 				tfm:sendCommand("profile " .. parameters)
 			end
 		},
@@ -656,9 +785,9 @@ do
 		["funcorp"] = c_fc,
 		["makebot"] = {
 			link = true,
-			h = "Displays the URLs of the bot APIs.",
-			f = function(isDebugging, playerName)
-				local t = "To make a bot in Transformice you'll need one of our APIs, which are available in Lua and Python. You'll also need a token for the API to connect to Transformice, which you can get by asking in our server: discord.gg/quch83R"
+			h = "$make",
+			f = function(playerCommunity, isDebugging, playerName)
+				local t = translate(playerCommunity, "$dmake", "discord.gg/quch83R")
 				if isDebugging then
 					return t
 				else
@@ -667,13 +796,13 @@ do
 			end
 		},
 	}
-	serverCommand = {
+	serverCommand = { -- message. param
 		["help"] = {
 			pb = true,
 			h = "Displays the available commands / the commands descriptions.",
 			f = function(message, parameters)
 				local isPb = (message.channel.category and message.channel.category.id ~= categoryId)
-				message:reply((string.gsub(help((isPb and serverHelpSource or memberHelpSource), parameters, (isPb and 3 or 2), '/'), '\'', '`')))
+				message:reply((string.gsub(help((isPb and serverHelpSource or memberHelpSource), parameters, (isPb and 3 or 2), "en", '/'), '\'', '`')))
 			end
 		},
 		["who"] = {
@@ -735,7 +864,7 @@ do
 				if not parameters then return end
 				parameters = string.toNickname(parameters, true)
 				tfm:sendRoomMessage(parameters .. " get_user " .. parameters)
-				onlinePlayers[parameters] = message.channel.id
+				onlinePlayer[parameters] = message.channel.id
 			end
 		},
 		["map"] = {
@@ -777,9 +906,11 @@ do
 				if message.author.id == disc.owner.id then
 					message:reply("Clearing cache")
 					xml = { queue = { } }
-					onlinePlayers = { }
+					onlinePlayer = { }
 					for k, v in next, srcMemberListCmd do
+						v._loading = ''
 						v._queue = { }
+						v._timer = 0
 					end
 				else
 					message:reply("You are not a bot admin.")
@@ -864,6 +995,18 @@ do
 				end
 			end
 		},
+		["mem"] = {
+			h = "[Admin only] Checks the current memory usage.",
+			f = function(message)
+				if message.author.id == disc.owner.id then
+					message:reply(tostring(collectgarbage("count")))
+					collectgarbage()
+					message:reply(tostring(collectgarbage("count")))
+				else
+					message:reply("You are not a bot admin.")
+				end
+			end
+		},
 	}
 end
 
@@ -904,23 +1047,23 @@ local getCommandParameters = function(message, prefix)
 	return (command and string.lower(command)), parameters
 end
 
-local userAntiSpam = function(src, playerName)
+local userAntiSpam = function(src, playerName, playerCommunity)
 	if src.link then
 		local time = os.time()
 		if (userCache[playerName] and userCache[playerName] > time) then
-			return "Wow, " .. playerName .. "; Hold on, cowboy! Don't spam me with commands."
+			return translate(playerCommunity, "$spam", playerName)
 		else
 			userCache[playerName] = time + ANTI_SPAM_TIME
 		end
 	end
 end
 
-local executeCommand = function(isChatCommand, content, target, playerName, isDebugging)
+local executeCommand = function(isChatCommand, content, target, playerName, isDebugging, playerCommunity)
 	local returnValue
 	local cmd, param = getCommandParameters(content)
 
 	if commandWrapper[cmd] then
-		returnValue = userAntiSpam(commandWrapper[cmd], target) or commandWrapper[cmd](param, target, isChatCommand)
+		returnValue = userAntiSpam(commandWrapper[cmd], target, playerCommunity) or commandWrapper[cmd](playerCommunity, param, target, isChatCommand)
 		if returnValue then
 			if isChatCommand or isDebugging then
 				tfm:sendChatMessage(target, returnValue)
@@ -932,7 +1075,7 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 	else
 		if isChatCommand then
 			if chatCommand[cmd] then
-				returnValue = userAntiSpam(chatCommand[cmd], playerName) or chatCommand[cmd](target, playerName, param)
+				returnValue = userAntiSpam(chatCommand[cmd], playerName, playerCommunity) or chatCommand[cmd](playerCommunity, target, playerName, param)
 				if returnValue then
 					tfm:sendChatMessage(target, returnValue)
 				end
@@ -940,7 +1083,7 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 			end
 		else
 			if whisperCommand[cmd] then
-				returnValue = userAntiSpam(whisperCommand[cmd], playerName) or whisperCommand[cmd](isDebugging, playerName, param)
+				returnValue = userAntiSpam(whisperCommand[cmd], playerName, playerCommunity) or whisperCommand[cmd](playerCommunity, isDebugging, playerName, param)
 				if returnValue then
 					if isDebugging then
 						tfm:sendChatMessage(target, returnValue)
@@ -1091,26 +1234,18 @@ tfm:once("connection", protect(function()
 		end
 	end
 
-	-- Get title list
-	local _, body = http.request("GET", "http://transformice.com/langues/tfz_en")
-	body = require("miniz").inflate(body, 1) -- Decompress
-
-	local male, female
-	for titleId, titleName in string.gmatch(body, "¤T_(%d+)=([^¤]+)") do
-		titleId = tonumber(titleId)
-
+	-- Title list
+	transfromage.translation.free(transfromage.enum.language.en, {
+		ModoEnLigne = true,
+		MapcrewEnLigne = true,
+		ModoPasEnLigne = true,
+		MapcrewPasEnLigne = true
+	}, "^T_%d+")
+	transfromage.translation.hardset(transfromage.enum.language.en, "^T_%d+", function(titleName)
 		titleName = string.gsub(titleName, "<.->", '') -- Removes HTML
 		titleName = string.gsub(titleName, "[%*%_~]", "\\%1") -- Escape special characters
-		if string.find(titleName, '|', nil, true) then -- Male / Female
-			-- Male version
-			male = string.gsub(titleName, "%((.-)|.-%)", function(s) return s end)
-			-- Female version
-			female = string.gsub(titleName, "%(.-|(.-)%)", function(s) return s end)
-
-			titleName = { male, female } -- id % 2 + 1
-		end
-		title[titleId] = titleName
-	end
+		return titleName
+	end)
 end))
 
 tfm:once("joinTribeHouse", protect(function()
@@ -1135,12 +1270,13 @@ tfm:on("chatMessage", protect(function(channelName, playerName, message, playerC
 
 	playerName = string.toNickname(playerName)
 
-	local content = string.format("[%s] [%s] [%s] %s", os.date("%H:%M"), getCommunityCode(playerCommunity), playerName, message)
+	playerCommunity = getCommunityCode(playerCommunity)
+	local content = string.format("[%s] [%s] [%s] %s", os.date("%H:%M"), playerCommunity, playerName, message)
 	content = formatReceiveText(content)
 
 	object[channelName]:send(content)
 
-	executeCommand(true, message, channelName, playerName)
+	executeCommand(true, message, channelName, playerName, nil, playerCommunity)
 end))
 
 tfm:on("whisperMessage", protect(function(playerName, message, playerCommunity)
@@ -1153,17 +1289,18 @@ tfm:on("whisperMessage", protect(function(playerName, message, playerCommunity)
 		lastUserReply = playerName
 	end
 
-	local content = string.format("%s [%s] [%s] [%s%s] %s", (isBot and '<' or '>'), os.date("%H:%M"), getCommunityCode(playerCommunity), playerName, ((isBot and lastUserWhispered) and (" → " .. lastUserWhispered) or ''), message)
+	playerCommunity = getCommunityCode(playerCommunity)
+	local content = string.format("%s [%s] [%s] [%s%s] %s", (isBot and '<' or '>'), os.date("%H:%M"), playerCommunity, playerName, ((isBot and lastUserWhispered) and (" → " .. lastUserWhispered) or ''), message)
 	content = formatReceiveText(content)
 
 	object.whisper:send(content)
 
-	executeCommand(false, message, playerName, playerName)
+	executeCommand(false, message, playerName, playerName, nil, playerCommunity)
 end))
 
 tfm:on("profileLoaded", protect(function(data)
 	if dressroom[data.playerName] then
-		local look = data.playerName .. "'s outfit: " .. dressroomLink(data.look)
+		local look = translate(dressroom[data.playerName].playerCommunity, "$outfit", data.playerName, dressroomLink(data.look))
 
 		if dressroom[data.playerName].isDebugging then
 			object.shadestest:send(formatReceiveText(look))
@@ -1173,8 +1310,10 @@ tfm:on("profileLoaded", protect(function(data)
 
 		dressroom[data.playerName] = nil
 	elseif profile[data.playerName] then
-		local title = (type(title[data.titleId]) == "table" and title[data.titleId][(data.gender % 2 + 1)] or title[data.titleId])
-		disc:getChannel(profile[data.playerName]):send((profile[data.playerName] == miscChannels.transfromage_tokens and ("<:wheel:456198795768889344> **" .. data.playerName .. "'s ID :** " .. data.id) or ({
+		local title, hasGender = transfromage.translation.get(transfromage.enum.language.en, "T_" .. data.titleId)
+		title = (title and (hasGender and title[(data.gender % 2 + 1)] or title) or data.titleId)
+
+		disc:getChannel(profile[data.playerName]):send((profile[data.playerName] == miscChannel.transfromage_tokens and ("<:wheel:456198795768889344> **" .. data.playerName .. "'s ID :** " .. data.id) or ({
 			embed = {
 				color = 0x2E565F,
 				title = "<:tfm_cheese:458404666926039053> Transformice Profile - " .. data.playerName .. (data.gender == 2 and " <:male:456193580155928588>" or data.gender == 1 and " <:female:456193579308679169>" or ''),
@@ -1186,7 +1325,7 @@ tfm:on("profileLoaded", protect(function(data)
 					((data.tribeName and data.tribeName ~= '') and ("\n<:tribe:458407729736974357> **Tribe :** " .. data.tribeName) or '') ..
 
 					"\n\n**Level " .. data.level .. "**" ..
-					"\n**Current Title :** «" .. (title or data.titleId) .. "»" ..
+					"\n**Current Title :** «" .. title .. "»" ..
 					"\n**Adventure points :** " .. data.adventurePoints ..
 
 					"\n\n<:shaman:512015935989612544> " .. data.saves.normal .. " / " .. data.saves.hard .. " / " .. data.saves.divine ..
@@ -1217,10 +1356,10 @@ tfm:insertPacketListener(6, 9, protect(function(self, packet, connection, C_CC) 
 	missing = tonumber(missing)
 
 	if team then
-		if onlinePlayers[team] then
+		if onlinePlayer[team] then
 			local isOnline = json.decode(content).isOnline
-			disc:getChannel(onlinePlayers[team]):send((isOnline and "<:online:456197711356755980>" or "<:offline:456197711457419276>") .. team .. " is " .. (isOnline and "on" or "off") .. "line!")
-			onlinePlayers[team] = nil
+			disc:getChannel(onlinePlayer[team]):send((isOnline and "<:online:456197711356755980>" or "<:offline:456197711457419276>") .. team .. " is " .. (isOnline and "on" or "off") .. "line!")
+			onlinePlayer[team] = nil
 			return
 		end
 
@@ -1238,21 +1377,24 @@ tfm:insertPacketListener(6, 9, protect(function(self, packet, connection, C_CC) 
 			end
 			if #out > 0 then
 				table.sort(out)
-				l._onlineMembers = "Online" .. team .. " members: " .. table.concat(out, ", ") -- Together because of %u→ %l
+				l._onlineMembers.state = 1 -- Online
+				l._onlineMembers.data = table.concat(out, ", ") -- Data is sent together (text%data) because of %u→ %l
 			else
-				l._onlineMembers = "No" .. team .. " online members."
+				l._onlineMembers.state = 0 -- Online
+				l._onlineMembers.data = ''
 			end
+			l._onlineMembers.team = team
 			l._loading = ''
 
 			for i = 1, #l._queue do
 				if l._queue[i].isDebugging then
 					if l._queue[i].isServerCmd then
-						l._queue[i].isDebugging:reply(formatServerText(l._onlineMembers))
+						l._queue[i].isDebugging:reply(formatServerText(l._onlineMembers()))
 					else
-						object.shadestest:send(formatReceiveText(l._onlineMembers))
+						object.shadestest:send(formatReceiveText(l._onlineMembers()))
 					end
 				else
-					tfm:sendWhisper(l._queue[i].playerName, l._onlineMembers)
+					tfm:sendWhisper(l._queue[i].playerName, l._onlineMembers(l._queue[i].language))
 				end
 			end
 			l._queue = { }
@@ -1264,9 +1406,13 @@ end))
 tfm:on("chatWho", protect(function(chatName, data)
 	if not chatName then return end
 
-	object[chatName]:send("Members in **#" .. chatName .. "** : " .. #data .. "\n" .. table.concat(table.mapArray(data, function(user)
+	local data = "**#" .. chatName .. "** : " .. #data .. "\n" .. table.concat(table.mapArray(data, function(user)
 		return "`" .. user .. "`"
-	end), ", "))
+	end), ", ")
+
+	for i = 0, #data, 2000 do
+		object[chatName]:send(string.sub(data, i + 1, i + 2000))
+	end
 end))
 
 tfm:on("staffList", protect(function(list)
@@ -1274,16 +1420,11 @@ tfm:on("staffList", protect(function(list)
 	local hasOnline = true
 
 	list = string.gsub(list, "%$(%S+)", function(line)
-		if line == "ModoEnLigne" then
+		if not isMod and line == "ModoEnLigne" then
 			isMod = true
-			return "**Online Moderators:**"
-		elseif line == "MapcrewEnLigne" then
-			return "**Online Mapcrew:**"
-		elseif line == "ModoPasEnLigne" then
-			return "**No Moderators online.**"
-		elseif line == "MapcrewPasEnLigne" then
-			return "**No Mapcrew online.**"
 		end
+
+		return "**" .. (transfromage.translation.get(transfromage.enum.language.en, line) or line) .. "**"
 	end)
 
 	if hasOnline then
@@ -1385,7 +1526,7 @@ tfm:on("newGame", protect(function(map)
 					file:flush()
 					file:close()
 
-					local perm = (mapCategories[map.perm] or mapCategories.default)
+					local perm = (mapCategory[map.perm] or mapCategory.default)
 					xml[map.code].message:reply({
 						content = "<@" .. xml[map.code].message.author.id .. ">",
 						embed = {
@@ -1447,6 +1588,7 @@ tfm:on("newGame", protect(function(map)
 end))
 
 -- Initialize
+transfromage.translation.download(transfromage.enum.language.en)
 tfm:setCommunity(transfromage.enum.community.sk)
 disc:run(DATA[5])
 DATA[5] = nil
