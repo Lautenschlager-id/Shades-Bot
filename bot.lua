@@ -40,7 +40,7 @@ local channel = transfromage.enum({
 })
 local settingchannel = {
 	discussion = "544935729508253717",
-	memberList = "544936174544748587",
+	memberList = "544936174544748587"
 }
 local miscChannel = {
 	transfromage_tokens = "579687024219389954"
@@ -83,6 +83,15 @@ local mapCategory = {
 	[44] = { "<:p44:563096584741585049>", 0xF40000, "Deleted" }
 }
 
+local roleColors = {
+	ModuleTeam = 0x7AC9C4,
+	FashionSquad = 0xEF98AA,
+	Funcorp = 0xFF9C00,
+	Sentinel = 0x2ECF73,
+	Moderator = 0xBABD2F,
+	Mapcrew = 0x2F7FCC
+}
+
 local translate = setmetatable({
 	en = {
 		-- Help
@@ -98,6 +107,7 @@ local translate = setmetatable({
 		mt = "Displays the online public Module Team members.",
 		fs = "Displays the online public Fashion Squad members.",
 		fc = "Displays the online Funcorp members.",
+		sent = "Displays the online Sentinels.",
 		make = "Shows how to make a bot with Transfromage.",
 		nocmd = "Command '%s' not found. :s", -- Name
 		hlist = "Type '%s command_name' to learn more. Available Commands → %s", -- "help"
@@ -132,6 +142,7 @@ local translate = setmetatable({
 		mt = "Mostra os membros públicos online da Module Team.",
 		fs = "Mostra os membros públicos online da Fashion Squad.",
 		fc = "Mostra os membros online da Funcorp.",
+		sent = "Mostra os Sentinelas online.",
 		make = "Mostra como fazer um bot com Transfromage.",
 		nocmd = "Comando '%s' não encontrado. :s",
 		hlist = "Digite '%s nome_commando' para ler mais. Comandos disponíveis → %s",
@@ -163,7 +174,8 @@ local translate = setmetatable({
 		dress = "Envía la dirección del aspecto de ti o de alguien. Acepta el nombre de usuario como parámetro.",
 		mt = "Muestra los miembros en línea del Module Team.",
 		fs = "Muestra los miembros en línea del Fashion Squad.",
-		fc = "Muestra a los miembros en línea del Funcorp.",
+		fc = "Muestra los miembros en línea del Funcorp.",
+		sent = "Muestra los Centinelas en línea.",
 		make = "Muestra como hacer un bot con Transfromage.",
 		nocmd = "No se ha encontrado el comando '%s'. :s",
 		hlist = "Escribe '%s nombre_comando' para saber más. Comandos Disponibles → %s",
@@ -332,16 +344,20 @@ local formatSendText = function(str)
 	return str
 end
 
-local formatServerText = function(str)
-	local title, data = string.match(str, "(.-: )(.*)")
-	if not title then
-		return str
-	end
+local formatServerMemberList = function(str, role)
+	local title, data = string.match(str, "(.-): (.*)")
+	title, data = tostring(title), tostring(data)
 
-	if data then
-		data = string.gsub(data, "#%d+", "`%1`")
-	end
-	return "**" .. title .. "**\n" .. data
+	data = string.gsub(data, "#%d+", "`%1`")
+	data = string.gsub(data, ", ?", "\n")
+
+	return {
+		embed = {
+			color = (role and roleColors[role] or 0x36393F),
+			title = title,
+			description = data
+		}
+	}
 end
 
 string.trim = function(str)
@@ -368,57 +384,31 @@ table.keys = function(list, f)
 	return out
 end
 
-local splitMsgByWord
-do
-	local lastSpaceIndex = function(str)
-		if not string.find(str, ' ') then return end
-		local f = string.find(string.reverse(str), ' ')
-		return (f and (#str - (f - 1)))
-	end
+local splitMsgByWord = function(user, msg, maxMsgs)
+	user = (user and ("[" .. user .. "] ") or '')
 
-	splitMsgByWord = function(user, msg, maxMsgs)
-		user = (user and ("[" .. user .. "] ") or '')
+	local maxLen = CHAR_LIM - #user
 
-		local maxLen = CHAR_LIM - #user
-		local messages = { }
-		msg = removeSpaces(msg)
+	msg = string.trim(msg)
+	msg = string.utf8(msg)
+	local contentLen = #msg
+	
+	local messages, outputCounter = { }, 0
 
-		local msgLen = #msg
-
-		local limMsg, lastSpace, j
-
-		local i = 0
-		while msgLen > maxLen and i < maxMsgs do
-			i = i + 1
-			if i > 1 then
-				msg = string.trim(msg)
-			end
-
-			limMsg = string.sub(msg, 1, maxLen)
-			lastSpace = lastSpaceIndex(limMsg)
-
-			if not lastSpace then
-				messages[i] = user .. limMsg
-				j = maxLen + 1
-			else
-				messages[i] = user .. string.sub(msg, 1, lastSpace - 1)
-				j = lastSpace + 1
-			end
-
-			msg = string.sub(msg, j)
-			msgLen = #msg
+	local current = 1
+	while current <= contentLen do
+		if msg[current] == ' ' then -- Ignores the first space of the message
+			current = current + 1
 		end
 
-		msg = string.trim(msg)
-		msgLen = #msg
+		outputCounter = outputCounter + 1
+		messages[outputCounter] = user .. table.concat(msg, nil, current, math.min(contentLen, current + (maxLen - 1)))
 
-		if msgLen > 0 and i < maxMsgs then
-			i = i + 1
-			messages[i] = user .. msg
-			return messages
-		end
-		return messages, (msgLen > 0 and msg or nil)
+		current = current + maxLen
+		if outputCounter == maxMsgs then break end
 	end
+
+	return messages, (contentLen >= current and table.concat(msg, nil, current) or nil) -- Messages, Missing
 end
 
 local encodeUrl = function(url)
@@ -463,7 +453,7 @@ local createListCommand = function(code)
 		if src._loading == '' then
 			if src._timer > os.time() then
 				if isServerCmd then
-					return isDebugging:reply(formatServerText(src._onlineMembers(playerCommunity)))
+					return isDebugging:reply(formatServerMemberList(src._onlineMembers(playerCommunity), name))
 				else
 					return src._onlineMembers(playerCommunity)
 				end
@@ -676,6 +666,11 @@ do
 		h = "$fc",
 		f = createListCommand(" funcorp")
 	}
+	local c_sent = {
+		pb = true,
+		h = "$sent",
+		f = createListCommand(" sentinel")
+	}
 
 	commandWrapper = { -- playerCommunity, param, target, isChatCommand
 		["luadoc"] = {
@@ -795,6 +790,7 @@ do
 				end
 			end
 		},
+		["sentinel"] = c_sent
 	}
 	serverCommand = { -- message. param
 		["help"] = {
@@ -1007,6 +1003,7 @@ do
 				end
 			end
 		},
+		["sentinel"] = c_sent
 	}
 end
 
@@ -1223,6 +1220,10 @@ tfm:on("ping", protect(function()
 	lastServerPing = timer.setTimeout(22 * 1000, error, "[Ping] Lost connection.", transfromage.enum.errorLevel.high)
 end))
 
+tfm:on("disconnection", protect(function(connection)
+	error("[Connection] Disconnected from " .. connection.name .. ".", transfromage.enum.errorLevel[(connection.name == "main" and "high" or "low")])
+end))
+
 tfm:once("connection", protect(function()
 	print("Joining Tribe House")
 	tfm:joinTribeHouse()
@@ -1235,13 +1236,8 @@ tfm:once("connection", protect(function()
 	end
 
 	-- Title list
-	transfromage.translation.free(transfromage.enum.language.en, {
-		ModoEnLigne = true,
-		MapcrewEnLigne = true,
-		ModoPasEnLigne = true,
-		MapcrewPasEnLigne = true
-	}, "^T_%d+")
-	transfromage.translation.hardset(transfromage.enum.language.en, "^T_%d+", function(titleName)
+	transfromage.translation.free(transfromage.enum.language.en, nil, "^T_%d+")
+	transfromage.translation.set(transfromage.enum.language.en, "^T_%d+", function(titleName)
 		titleName = string.gsub(titleName, "<.->", '') -- Removes HTML
 		titleName = string.gsub(titleName, "[%*%_~]", "\\%1") -- Escape special characters
 		return titleName
@@ -1367,6 +1363,7 @@ tfm:insertPacketListener(6, 9, protect(function(self, packet, connection, C_CC) 
 		if not l then return end
 		l._loading = l._loading .. content
 		if missing == 0 then
+			local _team = team
 			team = string.gsub(team, "%u", " %1")
 			local out, counter = { }, 0
 			for k, v in next, json.decode(l._loading).members do
@@ -1389,7 +1386,7 @@ tfm:insertPacketListener(6, 9, protect(function(self, packet, connection, C_CC) 
 			for i = 1, #l._queue do
 				if l._queue[i].isDebugging then
 					if l._queue[i].isServerCmd then
-						l._queue[i].isDebugging:reply(formatServerText(l._onlineMembers()))
+						l._queue[i].isDebugging:reply(formatServerMemberList(l._onlineMembers(), _team))
 					else
 						object.shadestest:send(formatReceiveText(l._onlineMembers()))
 					end
@@ -1418,14 +1415,26 @@ end))
 tfm:on("staffList", protect(function(list)
 	local isMod = false
 	local hasOnline = true
+	local title
 
 	list = string.gsub(list, "%$(%S+)", function(line)
-		if not isMod and line == "ModoEnLigne" then
+		if line == "ModoEnLigne" then
 			isMod = true
+			title = "Online Moderators"
+		elseif line == "ModoPasEnLigne" then
+			isMod = true
+			hasOnline = false
+			title = "No Moderators online :("
+		elseif line == "MapcrewEnLigne" then
+			title = "Online Mapcrew"
+		elseif line == "MapcrewPasEnLigne" then
+			hasOnline = false
+			title = "No Mapcrew online :("
+		else
+			title = line
 		end
-
-		return "**" .. (transfromage.translation.get(transfromage.enum.language.en, line) or line) .. "**"
-	end)
+		return ''
+	end, 1)
 
 	if hasOnline then
 		list = string.gsub(list, "<.->", '')
@@ -1437,9 +1446,18 @@ tfm:on("staffList", protect(function(list)
 		list = string.gsub(list, "#%d+", "`%1`")
 	end
 
+	local embed = {
+		embed = {
+			color = roleColors[(isMod and "Moderator" or "Mapcrew")],
+			title = tostring(title),
+			description = list
+		}
+	}
+
 	for channel in next, (isMod and modList or mapcrewList) do
-		disc:getChannel(channel):send(list)
+		disc:getChannel(channel):send(embed)
 	end
+
 	if isMod then
 		modList = { }
 	else
