@@ -346,10 +346,12 @@ end
 
 local formatServerMemberList = function(str, role)
 	local title, data = string.match(str, "(.-): (.*)")
-	title, data = tostring(title), tostring(data)
+	title = title or str
 
-	data = string.gsub(data, "#%d+", "`%1`")
-	data = string.gsub(data, ", ?", "\n")
+	if data then
+		data = string.gsub(data, "#%d+", "`%1`")
+		data = string.gsub(data, ", ?", "\n")
+	end
 
 	return {
 		embed = {
