@@ -47,7 +47,7 @@ local miscChannel = {
 }
 local categoryId = "544935544975786014"
 
-local helper = { }
+local helper = { _commu = { } }
 local isConnected = false
 local isWorking = false
 local lastServerPing, lastUserReply, lastUserWhispered
@@ -89,7 +89,8 @@ local roleColors = {
 	Funcorp = 0xFF9C00,
 	Sentinel = 0x2ECF73,
 	Moderator = 0xBABD2F,
-	Mapcrew = 0x2F7FCC
+	Mapcrew = 0x2F7FCC,
+	ShadesHelpers = 0xF3D165
 }
 
 local translate = setmetatable({
@@ -108,9 +109,10 @@ local translate = setmetatable({
 		fs = "Displays the online public Fashion Squad members.",
 		fc = "Displays the online Funcorp members.",
 		sent = "Displays the online Sentinels.",
+		sh = "Displays the online Shades Helpers.",
 		make = "Shows how to make a bot with Transfromage.",
 		nocmd = "Command '%s' not found. :s", -- Name
-		hlist = "Type '%s command_name' to learn more. Available Commands → %s", -- "help"
+		hlist = "Type '%s command_name' or '%scommand_name ?' to learn more. Available Commands → %s", -- "help"
 		-- Data
 		doc = "Lua documentation: %s", -- URL
 		nofaq = "This community doesn't have a FAQ yet. :(",
@@ -143,9 +145,10 @@ local translate = setmetatable({
 		fs = "Mostra os membros públicos online da Fashion Squad.",
 		fc = "Mostra os membros online da Funcorp.",
 		sent = "Mostra os Sentinelas online.",
+		sh = "Mostra os Shades Helper online.",
 		make = "Mostra como fazer um bot com Transfromage.",
 		nocmd = "Comando '%s' não encontrado. :s",
-		hlist = "Digite '%s nome_commando' para ler mais. Comandos disponíveis → %s",
+		hlist = "Digite '%s nome_comando' ou '%snome_comando ?' para ler mais. Comandos disponíveis → %s",
 		doc = "Documentação Lua: %s",
 		nofaq = "Essa comunidade ainda não tem uma FAQ. :(",
 		acommu = "Comunidades disponíveis → %s",
@@ -176,9 +179,10 @@ local translate = setmetatable({
 		fs = "Muestra los miembros en línea del Fashion Squad.",
 		fc = "Muestra los miembros en línea del Funcorp.",
 		sent = "Muestra los Centinelas en línea.",
+		sh = "Muestra los Shades Helper en línea.",
 		make = "Muestra como hacer un bot con Transfromage.",
 		nocmd = "No se ha encontrado el comando '%s'. :s",
-		hlist = "Escribe '%s nombre_comando' para saber más. Comandos Disponibles → %s",
+		hlist = "Escribe '%s nombre_comando' o ',%s nombre_comando' para saber más. Comandos Disponibles → %s",
 		doc = "Documentación de Lua: %s",
 		nofaq = "Esta comunidad no tiene FAQ todavía. :(",
 		acommu = "Comunidades disponibles → %s",
@@ -247,14 +251,14 @@ end
 local setHelper, remHelper
 do
 	local parse = function(line)
-		local id, nick, tag = string.match(line, "^<@!?(%d+)> += +([^#]+)(#?%d*)")
+		local id, nick, tag, commu = string.match(line, "^<@!?(%d+)> += +([^#]+)(#?%d*) += +(..)")
 		tag = (tag == '' and "#0000" or tag)
 
-		return id, nick, tag
+		return id, nick, tag, commu
 	end
 
 	setHelper = function(line)
-		local id, nick, tag = parse(line)
+		local id, nick, tag, commu = parse(line)
 
 		helper[nick] = id
 		if tag ~= "#0000" then
@@ -262,14 +266,18 @@ do
 		end
 		helper[id] = nick
 		helper[nick] = id
+
+		helper._commu[id] = commu
 	end
 
 	remHelper = function(line)
-		local id, nick, tag = parse(line)
+		local id, nick, tag, commu = parse(line)
 
 		helper[id] = nil
 		helper[nick] = nil
 		helper[nick .. tag] = nil
+
+		helper._commu[id] = nil
 	end
 end
 
@@ -484,9 +492,23 @@ end
 -- Command Functions
 do
 	local sendWhisper = tfm.sendWhisper
-	tfm.sendWhisper = function(self, playerName, message)
+	tfm.sendWhisper = function(self, playerName, message, appendMsg)
 		lastUserWhispered = playerName
-		return sendWhisper(self, playerName, message)
+
+		local messages, cutSlice = splitMsgByWord(appendMsg, message, WHISPER_MSG_LIM)
+		for m = 1, #messages do
+			sendWhisper(self, playerName, messages[m])
+		end
+		return cutSlice
+	end
+
+	local sendChatMessage = tfm.sendChatMessage
+	tfm.sendChatMessage = function(self, playerName, message, appendMsg)
+		local messages, cutSlice = splitMsgByWord(appendMsg, message, CHAT_MSG_LIM)
+		for m = 1, #messages do
+			sendChatMessage(self, playerName, messages[m])
+		end
+		return cutSlice
 	end
 end
 
@@ -610,7 +632,7 @@ do
 			end
 			return translate(language, "$nocmd", prefix .. param)
 		end
-		return translate(language, "$hlist", prefix .. "help", "'" .. prefix .. table.concat(src, ("' | '" .. prefix)) .. "'")
+		return translate(language, "$hlist", prefix .. "help", prefix, prefix .. table.concat(src, (" | " .. prefix)))
 	end
 
 	local faqThread = {
@@ -672,6 +694,10 @@ do
 		pb = true,
 		h = "$sent",
 		f = createListCommand(" sentinel")
+	}
+	local c_sh = {
+		h = "$sh",
+		f = createListCommand(" shades_helpers")
 	}
 
 	commandWrapper = { -- playerCommunity, param, target, isChatCommand
@@ -743,17 +769,19 @@ do
 				end
 			end
 		},
-		["shelpers"] = {
+		["dischelpers"] = {
 			h = "$helper",
 			f = function(playerCommunity, isDebugging, playerName)
 				local online, counter = { }, 0
 				for member in settingchannel.discussion.members:findAll(function(member) return member.status ~= "offline" end) do
 					if helper[member.id] then
 						counter = counter + 1
-						online[counter] = helper[member.id]
+						online[counter] = "[" .. helper._commu[member.id] .. "] " .. member.fullname .. " (" .. helper[member.id] .. ")"
 					end
 				end
-				table.sort(online)
+				table.sort(online, function(m1, m2)
+					return string.sub(m1, 6) < string.sub(m2, 6)
+				end)
 
 				local t = (#online == 0 and translate(playerCommunity, "$nohelper") or translate(playerCommunity, "$onhelper", table.concat(online, ", ")))
 				if isDebugging then
@@ -792,7 +820,8 @@ do
 				end
 			end
 		},
-		["sentinel"] = c_sent
+		["sentinel"] = c_sent,
+		["shelpers"] = c_sh
 	}
 	serverCommand = { -- message. param
 		["help"] = {
@@ -1005,7 +1034,8 @@ do
 				end
 			end
 		},
-		["sentinel"] = c_sent
+		["sentinel"] = c_sent,
+		["shelpers"] = c_sh
 	}
 end
 
@@ -1060,6 +1090,11 @@ end
 local executeCommand = function(isChatCommand, content, target, playerName, isDebugging, playerCommunity)
 	local returnValue
 	local cmd, param = getCommandParameters(content)
+
+	if param == '?' then
+		param = cmd
+		cmd = "help"
+	end
 
 	if commandWrapper[cmd] then
 		returnValue = userAntiSpam(commandWrapper[cmd], target, playerCommunity) or commandWrapper[cmd](playerCommunity, param, target, isChatCommand)
@@ -1132,6 +1167,11 @@ disc:on("messageCreate", protect(function(message)
 
 	local cmd, param = getCommandParameters(message.content, '/')
 	if cmd then
+		if param == '?' then
+			param = cmd
+			cmd = "help"
+		end
+
 		if serverCommand[cmd] then
 			if serverCommand[cmd].pb or isMember then
 				return serverCommand[cmd](message, param)
@@ -1143,7 +1183,7 @@ disc:on("messageCreate", protect(function(message)
 
 	if not string.find(message.content, "^,") then return end
 
-	local messages, cutSlice
+	local cutSlice--,messages
 	if (channel.whisper == message.channel.id) then -- on whisper
 		local target, content = string.match(message.content, "^,(.-) +(.+)")
 		if target == 'r' then
@@ -1162,10 +1202,11 @@ disc:on("messageCreate", protect(function(message)
 			target = string.toNickname(target)
 		end
 
-		messages, cutSlice = splitMsgByWord(helper[message.author.id], formatSendText(content), WHISPER_MSG_LIM)
-		for m = 1, #messages do
-			tfm:sendWhisper(target, messages[m])
-		end
+		--messages, cutSlice = splitMsgByWord(helper[message.author.id], formatSendText(content), WHISPER_MSG_LIM)
+		--for m = 1, #messages do
+		--	tfm:sendWhisper(target, messages[m])
+		--end
+		cutSlice = tfm:sendWhisper(target, formatSendText(content), helper[message.author.id])
 	else
 		if message.channel.id == channel.shadestest then
 			-- Whisper comes first because of ',help'
@@ -1175,10 +1216,11 @@ disc:on("messageCreate", protect(function(message)
 		end
 
 		local content = string.sub(message.content, 2)
-		messages, cutSlice = splitMsgByWord(helper[message.author.id], formatSendText(content), CHAT_MSG_LIM)
-		for m = 1, #messages do
-			tfm:sendChatMessage(channel(message.channel.id), messages[m])
-		end
+		--messages, cutSlice = splitMsgByWord(helper[message.author.id], formatSendText(content), CHAT_MSG_LIM)
+		--for m = 1, #messages do
+		--	tfm:sendChatMessage(channel(message.channel.id), messages[m])
+		--end
+		cutSlice = tfm:sendChatMessage(channel(message.channel.id), formatSendText(content), helper[message.author.id])
 	end
 	if cutSlice then
 		message:reply({
