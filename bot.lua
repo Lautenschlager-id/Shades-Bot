@@ -342,7 +342,7 @@ translate.en = {
 	nocmd = "Command '%s' not found. :s", -- Name
 	hlist = "Type '%s command_name' or '%scommand_name ?' to learn more. Available Commands → %s", -- "help"
 	link = "Displays the final URL of shortened URLs. Receives an URL as parameter.",
-	title = "Checks the next titles you are about to unlock.",
+	title = "Checks the next titles you or someone is about to unlock. Accepts a nickname as parameter.",
 	-- Data
 	doc = "Lua documentation: %s", -- URL
 	nofaq = "This community doesn't have a FAQ yet. :(",
@@ -389,7 +389,7 @@ translate.br = {
 	nocmd = "Comando '%s' não encontrado. :s",
 	hlist = "Digite '%s nome_comando' ou '%snome_comando ?' para ler mais. Comandos disponíveis → %s",
 	link = "Mostra a URL final de URLs encurtadas. Recebe uma URL como parâmetro.",
-	title = "Checa os próximos títulos que você está próximo de desbloquear.",
+	title = "Checa os próximos títulos que você ou alguém está próximo de desbloquear. Aceita um nickname como parâmetro.",
 	doc = "Documentação Lua: %s",
 	nofaq = "Essa comunidade ainda não tem uma FAQ. :(",
 	acommu = "Comunidades disponíveis → %s",
@@ -433,7 +433,7 @@ translate.es = {
 	nocmd = "No se ha encontrado el comando '%s'. :s",
 	hlist = "Escribe '%s nombre_comando' o ',%s nombre_comando' para saber más. Comandos Disponibles → %s",
 	link = "Muestra la URL final de las URLs acortadas.",
-	title = "Comprueba los siguientes títulos que vas a desbloquear.",
+	title = "Comprueba los siguientes títulos que usted o alguien va a desbloquear. Acepta el nombre de usuario como parámetro.",
 	doc = "Documentación de Lua: %s",
 	nofaq = "Esta comunidad no tiene FAQ todavía. :(",
 	acommu = "Comunidades disponibles → %s",
@@ -1052,7 +1052,7 @@ do
 			h = "$dress",
 			f = function(playerCommunity, isDebugging, playerName, parameters)
 				if parameters and #parameters > 2 then
-					parameters = string.toNickname(parameters)
+					parameters = string.toNickname(parameters, true)
 				else
 					parameters = playerName
 				end
@@ -1118,8 +1118,14 @@ do
 		["title"] = {
 			h = "$title",
 			f = function(playerCommunity, isDebugging, playerName, parameters)
-				checkTitles[playerName] = { playerName = playerName, isDebugging = isDebugging, playerCommunity = playerCommunity }
-				tfm:sendCommand("profile " .. playerName)
+				if parameters and #parameters > 2 then
+					parameters = string.toNickname(parameters, true)
+				else
+					parameters = playerName
+				end
+
+				checkTitles[parameters] = { playerName = playerName, isDebugging = isDebugging, playerCommunity = playerCommunity }
+				tfm:sendCommand("profile " .. parameters)
 			end
 		}
 	}
@@ -1643,7 +1649,7 @@ tfm:on("profileLoaded", protect(function(data)
 				description =
 					(data.role > 0 and ("**Role :** " .. string.gsub(transfromage.enum.role(data.role), "%a", string.upper, 1) .. "\n\n") or '') ..
 
-					((data.soulmate and data.soulmate ~= '') and (":revolving_hearts: **" .. string.toNickname(data.soulmate) .. "**\n") or '') ..
+					((data.soulmate and data.soulmate ~= '') and (":revolving_hearts: **" .. data.soulmate .. "**\n") or '') ..
 					":calendar: " .. os.date("%d/%m/%Y", data.registrationDate) .. 
 					((data.tribeName and data.tribeName ~= '') and ("\n<:tribe:458407729736974357> **Tribe :** " .. data.tribeName) or '') ..
 
@@ -1681,26 +1687,33 @@ tfm:on("profileLoaded", protect(function(data)
 		data.savesNormal, data.savesHard, data.savesDivine = data.saves.normal, data.saves.hard, data.saves.divine -- comp
 
 		local out, counter = { }, 0
-		local title, hasGender, field, stars
+		local title, hasGender, field, stars, skip
 		for f = 1, #titleFields do
 			field = titleFields[f]
 
+			skip = false
+			stars = ''
 			if field == "bootcamps" and data[field] < 9001 then -- Handle stars
-				stars = " " .. string.rep('★', ((data[field] - 1) / 1000))
-				data[field] = data[field] % 1000
-			else
-				stars = ''
+				local totalStars = ((data[field] - 1) / 1000)
+				if totalStars > 0 then
+					stars = " " .. string.rep('★', totalStars)
+					data[field] = data[field] % 1000
+				end
+			elseif (field == "savesHard" and data.savesNormal < 1000) or (field == "savesDivine" and data.savesHard < 2000) then
+				skip = true
 			end
 
-			for i = 1, #titleRequirements[field] do
-				if data[field] < titleRequirements[field][i][2] then
-					title, hasGender = transfromage.translation.get(transfromage.enum.language[commu], "T_" .. titleRequirements[field][i][1])
-					title = (title and (hasGender and title[gender] or title) or titleRequirements[field][i][1])
+			if not skip then
+				for i = 1, #titleRequirements[field] do
+					if data[field] < titleRequirements[field][i][2] then
+						title, hasGender = transfromage.translation.get(transfromage.enum.language[commu], "T_" .. titleRequirements[field][i][1])
+						title = (title and (hasGender and title[gender] or title) or titleRequirements[field][i][1])
 
-					counter = counter + 1
-					out[counter] = translate(commu, titleFieldsKeys[f]) 
-					out[counter] = translate(commu, "$checktitle", (titleRequirements[field][i][2] - data[field]), out[counter], title .. stars)
-					break
+						counter = counter + 1
+						out[counter] = translate(commu, titleFieldsKeys[f]) 
+						out[counter] = translate(commu, "$checktitle", (titleRequirements[field][i][2] - data[field]), out[counter], title .. stars)
+						break
+					end
 				end
 			end
 		end
@@ -1710,6 +1723,7 @@ tfm:on("profileLoaded", protect(function(data)
 		else
 			out = table.concat(out, " | ")
 		end
+		out = "'" .. data.playerName .. "': " .. out
 
 		if checkTitles[data.playerName].isDebugging then
 			object.shadestest:send(formatReceiveText(out))
