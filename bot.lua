@@ -60,6 +60,7 @@ local modulesCmd = { }
 local xml = { queue = { } }
 local userCache = { }
 local profile = { }
+local checkTitles = { }
 
 local mapCategory = {
 	default = { "<:ground:506477349966053386>", 0x90B214 },
@@ -93,6 +94,208 @@ local roleColors = {
 	ShadesHelpers = 0xF3D165
 }
 
+local titleRequirements = {
+	cheeses = {
+		{ 0, 0 },
+		{ 5, 5 },
+		{ 6, 20 },
+		{ 7, 100 },
+		{ 8, 200 },
+		{ 35, 300 },
+		{ 36, 400 },
+		{ 37, 500 },
+		{ 26, 600 },
+		{ 27, 700 },
+		{ 28, 800 },
+		{ 29, 900 },
+		{ 30, 1000 },
+		{ 31, 1100 },
+		{ 32, 1200 },
+		{ 33, 1300 },
+		{ 34, 1400 },
+		{ 38, 1500 },
+		{ 39, 1600 },
+		{ 40, 1700 },
+		{ 41, 1800 },
+		{ 72, 2000 },
+		{ 73, 2300 },
+		{ 74, 2700 },
+		{ 75, 3200 },
+		{ 76, 3800 },
+		{ 77, 4600 },
+		{ 78, 6000 },
+		{ 79, 7000 },
+		{ 80, 8000 },
+		{ 81, 9001 },
+		{ 82, 10000 },
+		{ 83, 14000 },
+		{ 84, 18000 },
+		{ 85, 22000 },
+		{ 86, 26000 },
+		{ 87, 30000 },
+		{ 88, 34000 },
+		{ 89, 38000 },
+		{ 90, 42000 },
+		{ 91, 46000 },
+		{ 92, 50000 },
+		{ 234, 55000 },
+		{ 235, 60000 },
+		{ 236, 65000 },
+		{ 237, 70000 },
+		{ 238, 75000 },
+		{ 93, 80000 }
+	},
+	firsts = {
+		{ 9, 1 },
+		{ 10, 10 },
+		{ 11, 100 },
+		{ 12, 200 },
+		{ 42, 300 },
+		{ 43, 400 },
+		{ 44, 500 },
+		{ 45, 600 },
+		{ 46, 700 },
+		{ 47, 800 },
+		{ 48, 900 },
+		{ 49, 1000 },
+		{ 50, 1100 },
+		{ 51, 1200 },
+		{ 52, 1400 },
+		{ 53, 1600 },
+		{ 54, 1800 },
+		{ 55, 2000 },
+		{ 56, 2200 },
+		{ 57, 2400 },
+		{ 58, 2600 },
+		{ 59, 2800 },
+		{ 60, 3000 },
+		{ 61, 3200 },
+		{ 62, 3400 },
+		{ 63, 3600 },
+		{ 64, 3800 },
+		{ 65, 4000 },
+		{ 66, 4500 },
+		{ 67, 5000 },
+		{ 68, 5500 },
+		{ 69, 6000 },
+		{ 231, 7000 },
+		{ 232, 8000 },
+		{ 233, 9000 },
+		{ 70, 10000 },
+		{ 224, 12000 },
+		{ 225, 14000 },
+		{ 226, 16000 },
+		{ 227, 18000 },
+		{ 202, 20000 },
+		{ 228, 25000 },
+		{ 229, 30000 },
+		{ 230, 35000 },
+		{ 71, 40000 }
+	},
+	savesNormal = {
+		{ 1, 10 },
+		{ 2, 100 },
+		{ 3, 1000 },
+		{ 4, 2000 },
+		{ 13, 3000 },
+		{ 14, 4000 },
+		{ 15, 5000 },
+		{ 16, 6000 },
+		{ 17, 7000 },
+		{ 18, 8000 },
+		{ 19, 9000 },
+		{ 20, 10000 },
+		{ 21, 11000 },
+		{ 22, 12000 },
+		{ 23, 13000 },
+		{ 24, 14000 },
+		{ 25, 15000 },
+		{ 94, 16000 },
+		{ 95, 18000 },
+		{ 96, 20000 },
+		{ 97, 22000 },
+		{ 98, 24000 },
+		{ 99, 26000 },
+		{ 100, 28000 },
+		{ 101, 30000 },
+		{ 102, 35000 },
+		{ 103, 40000 },
+		{ 104, 45000 },
+		{ 105, 50000 },
+		{ 106, 55000 },
+		{ 107, 60000 },
+		{ 108, 65000 },
+		{ 109, 70000 },
+		{ 110, 75000 },
+		{ 111, 80000 },
+		{ 112, 85000 },
+		{ 113, 90000 },
+		{ 200, 100000 },
+		{ 114, 140000 }
+	},
+	savesHard = {
+		{ 213, 500 },
+		{ 214, 2000 },
+		{ 215, 4000 },
+		{ 216, 7000 },
+		{ 217, 10000 },
+		{ 218, 14000 },
+		{ 219, 18000 },
+		{ 220, 22000 },
+		{ 221, 26000 },
+		{ 222, 30000 },
+		{ 223, 34000 }
+	},
+	savesDivine = {
+		{ 324, 500 },
+		{ 325, 1000 },
+		{ 326, 2000 },
+		{ 327, 4000 },
+		{ 328, 7000 },
+		{ 329, 10000 },
+		{ 330, 15000 },
+		{ 331, 20000 },
+		{ 332, 25000 },
+		{ 333, 30000 },
+		{ 334, 40000 }
+	},
+	bootcamps = {
+		{ 256, 1 },
+		{ 257, 3 },
+		{ 258, 5 },
+		{ 259, 7 },
+		{ 260, 10 },
+		{ 261, 15 },
+		{ 262, 20 },
+		{ 263, 25 },
+		{ 264, 30 },
+		{ 265, 40 },
+		{ 266, 50 },
+		{ 267, 60 },
+		{ 268, 70 },
+		{ 269, 80 },
+		{ 270, 90 },
+		{ 271, 100 },
+		{ 272, 120 },
+		{ 273, 140 },
+		{ 274, 160 },
+		{ 275, 180 },
+		{ 276, 200 },
+		{ 277, 250 },
+		{ 278, 300 },
+		{ 279, 350 },
+		{ 280, 400 },
+		{ 281, 500 },
+		{ 282, 600 },
+		{ 283, 700 },
+		{ 284, 800 },
+		{ 285, 900 },
+		{ 286, 1000 }
+	}
+}
+local titleFields = { "cheeses", "firsts", "savesNormal", "savesHard", "savesDivine", "bootcamps" }
+local titleFieldsKeys = { "$cheese", "$first", "$svnormal", "$svhard", "$svdiv", "$boot" }
+
 local translate = setmetatable({
 	en = {
 		-- Help
@@ -113,6 +316,8 @@ local translate = setmetatable({
 		make = "Shows how to make a bot with Transfromage.",
 		nocmd = "Command '%s' not found. :s", -- Name
 		hlist = "Type '%s command_name' or '%scommand_name ?' to learn more. Available Commands → %s", -- "help"
+		link = "Displays the final URL of shortened URLs. Receives an URL as parameter.",
+		title = "Checks the next titles you are about to unlock.",
 		-- Data
 		doc = "Lua documentation: %s", -- URL
 		nofaq = "This community doesn't have a FAQ yet. :(",
@@ -129,7 +334,16 @@ local translate = setmetatable({
 		outfit = "%s's outfit: %s", -- Name, URL
 		onteam = "Online%s members: %s", -- Name of the team (prefixed with a space), List
 		noteam = "No%s online members.", -- Name of the team (prefixed with a space)
-		spam = "Wow, %s; Hold on, cowboy! Don't spam me with commands." -- Name
+		spam = "Wow, %s; Hold on, cowboy! Don't spam me with commands.", -- Name
+		checktitle = "%d %s for «%s»",
+		notitle = "You already have all the titles from stats! :O",
+		-- Fields
+		cheese = "cheese",
+		first = "firsts",
+		svnormal = "saves in normal mode",
+		svhard = "saves in hard mode",
+		svdiv = "saves in divine mode",
+		boot = "bootcamps"
 	},
 	br = {
 		hdoc = "Envia o link para a documentação Lua do Transformice.",
@@ -149,6 +363,8 @@ local translate = setmetatable({
 		make = "Mostra como fazer um bot com Transfromage.",
 		nocmd = "Comando '%s' não encontrado. :s",
 		hlist = "Digite '%s nome_comando' ou '%snome_comando ?' para ler mais. Comandos disponíveis → %s",
+		link = "Mostra a URL final de URLs encurtadas. Recebe uma URL como parâmetro.",
+		title = "Checa os próximos títulos que você está próximo de desbloquear.",
 		doc = "Documentação Lua: %s",
 		nofaq = "Essa comunidade ainda não tem uma FAQ. :(",
 		acommu = "Comunidades disponíveis → %s",
@@ -163,7 +379,15 @@ local translate = setmetatable({
 		outfit = "Visual de %s: %s",
 		onteam = "Membros online da%s: %s",
 		noteam = "Não há membros online da%s.",
-		spam = "Wow, %s; Calma aí, parceiro! Não me spame com comandos."
+		spam = "Wow, %s; Calma aí, parceiro! Não me spame com comandos.",
+		checktitle = "%d %s para «%s»",
+		notitle = "Você já tem todos os títulos de stats! :O",
+		cheese = "queijos",
+		first = "firsts",
+		svnormal = "saves no modo normal",
+		svhard = "saves no modo difícil",
+		svdiv = "saves no modo divino",
+		boot = "bootcamps"
 	},
 	es = {
 		hdoc = "Envía la dirección de la Documentación de Lua de Transformice",
@@ -183,6 +407,8 @@ local translate = setmetatable({
 		make = "Muestra como hacer un bot con Transfromage.",
 		nocmd = "No se ha encontrado el comando '%s'. :s",
 		hlist = "Escribe '%s nombre_comando' o ',%s nombre_comando' para saber más. Comandos Disponibles → %s",
+		link = "Muestra la URL final de las URLs acortadas.",
+		title = "Comprueba los siguientes títulos que vas a desbloquear.",
 		doc = "Documentación de Lua: %s",
 		nofaq = "Esta comunidad no tiene FAQ todavía. :(",
 		acommu = "Comunidades disponibles → %s",
@@ -197,7 +423,15 @@ local translate = setmetatable({
 		outfit = "Aspecto de %s: %s",
 		onteam = "Miembros del%s en línea: %s",
 		noteam = "No hay miembros del%s en línea.",
-		spam = "Wow, %s; ¡Espera, cowboy! No me spamees con comandos."
+		spam = "Wow, %s; ¡Espera, cowboy! No me spamees con comandos.",
+		checktitle = "%d %s para «%s»",
+		notitle = "¡Usted ya tiene todos los títulos de stats! :O",
+		cheese = "quesos",
+		first = "firsts",
+		svnormal = "salvados en modo normal",
+		svhard = "salvados en modo difícil",
+		svdiv = "salvados en modo divino",
+		boot = "bootcamps"
 	}
 }, {
 	__call = function(this, community, str, ...)
@@ -402,7 +636,7 @@ local splitMsgByWord = function(user, msg, maxMsgs)
 	msg = string.trim(msg)
 	msg = string.utf8(msg)
 	local contentLen = #msg
-	
+
 	local messages, outputCounter = { }, 0
 
 	local current = 1
@@ -659,7 +893,8 @@ do
 
 	local teams = {
 		mt = { "Module Team", "https://goo.gl/ZJcnhZ" },
-		fs = { "Fashion Squad", "http://bit.ly/2I1FY4d" }
+		fs = { "Fashion Squad", "http://bit.ly/2I1FY4d" },
+		sh = { "Shades Helper", "https://discord.gg/quch83R" }
 	}
 	local teamAliases = { }
 	-- MT
@@ -673,6 +908,12 @@ do
 	teamAliases.fashionsquad = "fs"
 	teamAliases["fashion squad"] = "fs"
 	teamAliases.fashion = "fs"
+	-- SH
+	teamAliases.helper = "sh"
+	teamAliases.shades = "sh"
+	teamAliases.shelper = "sh"
+	teamAliases["shades helper"] = "sh"
+	teamAliases["shade helper"] = "sh"
 
 	-- Whisper, Server
 	local c_mt = {
@@ -780,7 +1021,7 @@ do
 					end
 				end
 				table.sort(online, function(m1, m2)
-					return string.sub(m1, 6) < string.sub(m2, 6)
+					return string.match(m1, "%b()$") < string.match(m2, "%b()$")
 				end)
 
 				local t = (#online == 0 and translate(playerCommunity, "$nohelper") or translate(playerCommunity, "$onhelper", table.concat(online, ", ")))
@@ -821,7 +1062,51 @@ do
 			end
 		},
 		["sentinel"] = c_sent,
-		["shelpers"] = c_sh
+		["shelpers"] = c_sh,
+		["link"] = {
+			link = true,
+			h = "$link",
+			f = function(playerCommunity, isDebugging, playerName, parameters)
+				if not parameters then return end
+				if not string.find(parameters, "^https?://") then
+					parameters = "http://" .. parameters
+				end
+
+				local final
+
+				local isLink, head = pcall(http.request, "GET", parameters)
+				if isLink then
+					local redir = parameters
+
+					while head.code == 301 do
+						for i = 1, #head do
+							if head[i][1] == "Location" then
+								redir = head[i][2]
+								head = http.request("GET", redir)
+								break
+							end
+						end
+					end
+
+					final = "The final link is: " .. redir
+				else
+					final = "Invalid or unavailable link."
+				end
+
+				if isDebugging then
+					return final
+				else
+					tfm:sendWhisper(playerName, final)
+				end
+			end
+		},
+		["title"] = {
+			h = "$title",
+			f = function(playerCommunity, isDebugging, playerName, parameters)
+				checkTitles[playerName] = { playerName = playerName, isDebugging = isDebugging, playerCommunity = playerCommunity }
+				tfm:sendCommand("profile " .. playerName)
+			end
+		}
 	}
 	serverCommand = { -- message. param
 		["help"] = {
@@ -1183,7 +1468,7 @@ disc:on("messageCreate", protect(function(message)
 
 	if not string.find(message.content, "^,") then return end
 
-	local cutSlice--,messages
+	local cutSlice
 	if (channel.whisper == message.channel.id) then -- on whisper
 		local target, content = string.match(message.content, "^,(.-) +(.+)")
 		if target == 'r' then
@@ -1202,10 +1487,6 @@ disc:on("messageCreate", protect(function(message)
 			target = string.toNickname(target)
 		end
 
-		--messages, cutSlice = splitMsgByWord(helper[message.author.id], formatSendText(content), WHISPER_MSG_LIM)
-		--for m = 1, #messages do
-		--	tfm:sendWhisper(target, messages[m])
-		--end
 		cutSlice = tfm:sendWhisper(target, formatSendText(content), helper[message.author.id])
 	else
 		if message.channel.id == channel.shadestest then
@@ -1215,12 +1496,7 @@ disc:on("messageCreate", protect(function(message)
 			if executed then return end
 		end
 
-		local content = string.sub(message.content, 2)
-		--messages, cutSlice = splitMsgByWord(helper[message.author.id], formatSendText(content), CHAT_MSG_LIM)
-		--for m = 1, #messages do
-		--	tfm:sendChatMessage(channel(message.channel.id), messages[m])
-		--end
-		cutSlice = tfm:sendChatMessage(channel(message.channel.id), formatSendText(content), helper[message.author.id])
+		cutSlice = tfm:sendChatMessage(channel(message.channel.id), formatSendText(string.sub(message.content, 2)), helper[message.author.id])
 	end
 	if cutSlice then
 		message:reply({
@@ -1387,6 +1663,50 @@ tfm:on("profileLoaded", protect(function(data)
 			}
 		})))
 		profile[data.playerName] = nil
+	elseif checkTitles[data.playerName] then
+		local gender = (data.gender % 2 + 1)
+
+
+		data.savesNormal, data.savesHard, data.savesDivine = data.saves.normal, data.saves.hard, data.saves.divine -- comp
+
+		local out, counter = { }, 0
+		local title, hasGender, field, stars
+		for f = 1, #titleFields do
+			field = titleFields[f]
+
+			if field == "bootcamps" and data[field] < 9001 then -- Handle stars
+				stars = " " .. string.rep('★', ((data[field] - 1) / 1000))
+				data[field] = data[field] % 1000
+			else
+				stars = ''
+			end
+
+			for i = 1, #titleRequirements[field] do
+				if data[field] < titleRequirements[field][i][2] then
+					title, hasGender = transfromage.translation.get(transfromage.enum.language.en, "T_" .. titleRequirements[field][i][1])
+					title = (title and (hasGender and title[gender] or title) or titleRequirements[field][i][1])
+
+					counter = counter + 1
+					out[counter] = translate(checkTitles[data.playerName].playerCommunity, titleFieldsKeys[f]) 
+					out[counter] = translate(checkTitles[data.playerName].playerCommunity, "$checktitle", (titleRequirements[field][i][2] - data[field]), out[counter], title .. stars)
+					break
+				end
+			end
+		end
+
+		if #out == 0 then
+			out = translate(checkTitles[data.playerName].playerCommunity, "$notitle")
+		else
+			out = table.concat(out, " | ")
+		end
+
+		if checkTitles[data.playerName].isDebugging then
+			object.shadestest:send(formatReceiveText(out))
+		else
+			tfm:sendWhisper(checkTitles[data.playerName].playerName, out)
+		end
+
+		checkTitles[data.playerName] = nil
 	end
 end))
 
