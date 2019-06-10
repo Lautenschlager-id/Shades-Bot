@@ -23,8 +23,9 @@ local discordia = require("discordia")
 local transfromage = require("transfromage")
 
 -- Init
-discordia.extensions()
-local disc = discordia.Client()
+local disc = discordia.Client({
+	cacheAllMembers = true
+})
 disc._options.routeDelay = 0
 local tfm = transfromage.client:new()
 
@@ -643,13 +644,13 @@ table.keys = function(list, f)
 	return out
 end
 
-local splitMsgByWord = function(user, msg, maxMsgs)
+local splitMsgByWord = function(user, msg, maxMsgs, countByByte)
 	user = (user and ("[" .. user .. "] ") or '')
 
 	local maxLen = CHAR_LIM - #user
 
 	msg = string.trim(msg)
-	msg = string.utf8(msg)
+	msg = (countByByte and string.split(msg, '.') or string.utf8(msg))
 	local contentLen = #msg
 
 	local messages, outputCounter = { }, 0
@@ -741,10 +742,10 @@ end
 -- Command Functions
 do
 	local sendWhisper = tfm.sendWhisper
-	tfm.sendWhisper = function(self, playerName, message, appendMsg)
+	tfm.sendWhisper = function(self, playerName, message, appendMsg, countByByte)
 		lastUserWhispered = playerName
 
-		local messages, cutSlice = splitMsgByWord(appendMsg, message, WHISPER_MSG_LIM)
+		local messages, cutSlice = splitMsgByWord(appendMsg, message, WHISPER_MSG_LIM, countByByte)
 		for m = 1, #messages do
 			sendWhisper(self, playerName, messages[m])
 		end
@@ -752,8 +753,8 @@ do
 	end
 
 	local sendChatMessage = tfm.sendChatMessage
-	tfm.sendChatMessage = function(self, playerName, message, appendMsg)
-		local messages, cutSlice = splitMsgByWord(appendMsg, message, CHAT_MSG_LIM)
+	tfm.sendChatMessage = function(self, playerName, message, appendMsg, countByByte)
+		local messages, cutSlice = splitMsgByWord(appendMsg, message, CHAT_MSG_LIM, countByByte)
 		for m = 1, #messages do
 			sendChatMessage(self, playerName, messages[m])
 		end
@@ -1032,7 +1033,7 @@ do
 				for member in settingchannel.discussion.members:findAll(function(member) return member.status ~= "offline" end) do
 					if helper[member.id] then
 						counter = counter + 1
-						online[counter] = "[" .. helper._commu[member.id] .. "] " .. member.fullname .. " (" .. helper[member.id] .. ")"
+						online[counter] = "[" .. helper._commu[member.id] .. "] " .. member.name .. " (" .. helper[member.id] .. ")"
 					end
 				end
 				table.sort(online, function(m1, m2)
@@ -1043,7 +1044,7 @@ do
 				if isDebugging then
 					return t
 				else
-					tfm:sendWhisper(playerName, t)
+					tfm:sendWhisper(playerName, t, nil, true) -- Counts by bytes because of Blank's nickname that is handled wrong by TFM.
 				end
 			end
 		},
@@ -1695,7 +1696,7 @@ tfm:on("profileLoaded", protect(function(data)
 			stars = ''
 			if field == "bootcamps" and data[field] < 9001 then -- Handle stars
 				local totalStars = ((data[field] - 1) / 1000)
-				if totalStars > 0 then
+				if totalStars >= 1 then
 					stars = " " .. string.rep('★', totalStars)
 					data[field] = data[field] % 1000
 				end
