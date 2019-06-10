@@ -650,8 +650,15 @@ local splitMsgByWord = function(user, msg, maxMsgs, countByByte)
 	local maxLen = CHAR_LIM - #user
 
 	msg = string.trim(msg)
-	msg = (countByByte and string.split(msg, '.') or string.utf8(msg))
+	local len
+	if countByByte then
+		len = #msg
+	end
+	msg = string.utf8(msg)
 	local contentLen = #msg
+	if len then
+		maxLen = maxLen - (len - contentLen)
+	end
 
 	local messages, outputCounter = { }, 0
 
@@ -1033,7 +1040,7 @@ do
 				for member in settingchannel.discussion.members:findAll(function(member) return member.status ~= "offline" end) do
 					if helper[member.id] then
 						counter = counter + 1
-						online[counter] = "[" .. helper._commu[member.id] .. "] " .. member.name .. " (" .. helper[member.id] .. ")"
+						online[counter] = "[" .. helper._commu[member.id] .. "] " .. member.fullname .. " (" .. helper[member.id] .. ")"
 					end
 				end
 				table.sort(online, function(m1, m2)
@@ -1042,7 +1049,7 @@ do
 
 				local t = (#online == 0 and translate(playerCommunity, "$nohelper") or translate(playerCommunity, "$onhelper", table.concat(online, ", ")))
 				if isDebugging then
-					return t
+					return t, true
 				else
 					tfm:sendWhisper(playerName, t, nil, true) -- Counts by bytes because of Blank's nickname that is handled wrong by TFM.
 				end
@@ -1395,7 +1402,7 @@ local userAntiSpam = function(src, playerName, playerCommunity)
 end
 
 local executeCommand = function(isChatCommand, content, target, playerName, isDebugging, playerCommunity)
-	local returnValue
+	local returnValue, countByByte
 	local cmd, param = getCommandParameters(content)
 
 	if param == '?' then
@@ -1404,32 +1411,41 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 	end
 
 	if commandWrapper[cmd] then
-		returnValue = userAntiSpam(commandWrapper[cmd], target, playerCommunity) or commandWrapper[cmd](playerCommunity, param, target, isChatCommand)
+		returnValue = userAntiSpam(commandWrapper[cmd], target, playerCommunity)
+		if not returnValue then -- if because "a, b = c() or d()" doesn't apply for multiple values. :s
+			returnValue, countByByte = commandWrapper[cmd](playerCommunity, param, target, isChatCommand)
+		end
 		if returnValue then
 			if isChatCommand or isDebugging then
-				tfm:sendChatMessage(target, returnValue)
+				tfm:sendChatMessage(target, returnValue, nil, countByByte)
 			else
-				tfm:sendWhisper(target, returnValue)
+				tfm:sendWhisper(target, returnValue, nil, countByByte)
 			end
 		end
 		return true
 	else
 		if isChatCommand then
 			if chatCommand[cmd] then
-				returnValue = userAntiSpam(chatCommand[cmd], playerName, playerCommunity) or chatCommand[cmd](playerCommunity, target, playerName, param)
+				returnValue = userAntiSpam(chatCommand[cmd], playerName, playerCommunity)
+				if not returnValue then
+					returnValue, countByByte = chatCommand[cmd](playerCommunity, target, playerName, param)
+				end
 				if returnValue then
-					tfm:sendChatMessage(target, returnValue)
+					tfm:sendChatMessage(target, returnValue, nil, countByByte)
 				end
 				return true
 			end
 		else
 			if whisperCommand[cmd] then
-				returnValue = userAntiSpam(whisperCommand[cmd], playerName, playerCommunity) or whisperCommand[cmd](playerCommunity, isDebugging, playerName, param)
+				returnValue = userAntiSpam(whisperCommand[cmd], playerName, playerCommunity)
+				if not returnValue then
+					returnValue, countByByte = whisperCommand[cmd](playerCommunity, isDebugging, playerName, param)
+				end
 				if returnValue then
 					if isDebugging then
-						tfm:sendChatMessage(target, returnValue)
+						tfm:sendChatMessage(target, returnValue, nil, countByByte)
 					else
-						tfm:sendWhisper(target, returnValue)
+						tfm:sendWhisper(target, returnValue, nil, countByByte)
 					end
 				end
 				return true
