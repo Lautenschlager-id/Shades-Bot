@@ -296,146 +296,25 @@ local titleRequirements = {
 local titleFields = { "cheeses", "firsts", "savesNormal", "savesHard", "savesDivine", "bootcamps" }
 local titleFieldsKeys = { "$cheese", "$first", "$svnormal", "$svhard", "$svdiv", "$boot" }
 
-local translate = setmetatable({
-	en = {
-		-- Help
-		hdoc = "Sends the link of the Transformice Lua Documentation.",
-		faq = "Sends the link of the FAQ thread of a community.",
-		commu = "community",
-		happ = "Sends the application form link of a Transformice official team.",
-		team = "team_name",
-		help = "Displays the available commands / the commands descriptions.",
-		info = "Displays cool bot informations.",
-		helper = "Displays the Shades Helpers that are online on Discord.",
-		dress = "Sends a link of your/someone's outfit. Accepts a nickname as parameter.",
-		mt = "Displays the online public Module Team members.",
-		fs = "Displays the online public Fashion Squad members.",
-		fc = "Displays the online Funcorp members.",
-		sent = "Displays the online Sentinels.",
-		sh = "Displays the online Shades Helpers.",
-		make = "Shows how to make a bot with Transfromage.",
-		nocmd = "Command '%s' not found. :s", -- Name
-		hlist = "Type '%s command_name' or '%scommand_name ?' to learn more. Available Commands → %s", -- "help"
-		link = "Displays the final URL of shortened URLs. Receives an URL as parameter.",
-		title = "Checks the next titles you are about to unlock.",
-		-- Data
-		doc = "Lua documentation: %s", -- URL
-		nofaq = "This community doesn't have a FAQ yet. :(",
-		acommu = "Available communities → %s", -- List
-		app = "Apply to '%s': %s", -- Name, URL
-		noapp = "The requested team was not found. :(",
-		ateam = "Available teams → %s", -- List
-		nohelp = "Whisper me with ',%s' to get the command list.", -- "help"
-		about = "I'm a bot from the '%s' server ( %s ), maintained by %s. Shades Helpers is a group intended to help everyone, mostly about modules, lua, and technical stuff.", -- Name, URL, Name
-		nohelper = "No Shades Helpers online on Discord. :(",
-		onhelper = "Online Shades Helpers on Discord: %s",
-		dmake = "To make a bot in Transformice you'll need: - one of our APIs, which are available in Lua and Python; - a token for the API to connect to Transformice. You can get it all by asking in our server: %s", -- URL
-		-- Extra
-		outfit = "%s's outfit: %s", -- Name, URL
-		onteam = "Online%s members: %s", -- Name of the team (prefixed with a space), List
-		noteam = "No%s online members.", -- Name of the team (prefixed with a space)
-		spam = "Wow, %s; Hold on, cowboy! Don't spam me with commands.", -- Name
-		checktitle = "%d %s for «%s»",
-		notitle = "You already have all the titles from stats! :O",
-		-- Fields
-		cheese = "cheese",
-		first = "firsts",
-		svnormal = "saves in normal mode",
-		svhard = "saves in hard mode",
-		svdiv = "saves in divine mode",
-		boot = "bootcamps"
-	},
-	br = {
-		hdoc = "Envia o link para a documentação Lua do Transformice.",
-		faq = "Envia o link do tópico FAQ de uma comunidade.",
-		commu = "comunidade",
-		happ = "Envia o link de um formulário de aplicação de uma equipe oficial do Transformice.",
-		team = "nome_equipe",
-		help = "Mostra os comandos disponíveis / a descrição dos comandos.",
-		info = "Mostra informações legais do bot.",
-		helper = "Mostra os Shades Helpers que estão online no Discord.",
-		dress = "Envia um link com seu visual, ou o de algum jogador. Aceita um nickname como parâmetro.",
-		mt = "Mostra os membros públicos online da Module Team.",
-		fs = "Mostra os membros públicos online da Fashion Squad.",
-		fc = "Mostra os membros online da Funcorp.",
-		sent = "Mostra os Sentinelas online.",
-		sh = "Mostra os Shades Helper online.",
-		make = "Mostra como fazer um bot com Transfromage.",
-		nocmd = "Comando '%s' não encontrado. :s",
-		hlist = "Digite '%s nome_comando' ou '%snome_comando ?' para ler mais. Comandos disponíveis → %s",
-		link = "Mostra a URL final de URLs encurtadas. Recebe uma URL como parâmetro.",
-		title = "Checa os próximos títulos que você está próximo de desbloquear.",
-		doc = "Documentação Lua: %s",
-		nofaq = "Essa comunidade ainda não tem uma FAQ. :(",
-		acommu = "Comunidades disponíveis → %s",
-		app = "Aplique para '%s': %s",
-		noapp = "A equipe pedida não foi encontrada. :(",
-		ateam = "Equipes disponíveis → %s",
-		nohelp = "Me cochiche com ',%s' para obter a lista de comandos.",
-		about = "Sou um bot do servidor '%s' ( %s ), mantido por %s. Shades Helpers é um grupo com a intenção de ajudar todo mundo, especialmente sobre módulos, lua e coisas técnicas.",
-		nohelper = "Não há Shades Helpers online no Discord. :(",
-		onhelper = "Shades Helpers Online no Discord: %s",
-		dmake = "Para fazer um bot no Transformice será necessário: - uma de nossas APIs, disponível em Lua e Python; - um token para a API se conectar ao Transformice; Você pode conseguir isso tudo em nosso server: %s",
-		outfit = "Visual de %s: %s",
-		onteam = "Membros online da%s: %s",
-		noteam = "Não há membros online da%s.",
-		spam = "Wow, %s; Calma aí, parceiro! Não me spame com comandos.",
-		checktitle = "%d %s para «%s»",
-		notitle = "Você já tem todos os títulos de stats! :O",
-		cheese = "queijos",
-		first = "firsts",
-		svnormal = "saves no modo normal",
-		svhard = "saves no modo difícil",
-		svdiv = "saves no modo divino",
-		boot = "bootcamps"
-	},
-	es = {
-		hdoc = "Envía la dirección de la Documentación de Lua de Transformice",
-		faq = "Muestra el tema de FAQ de una comunidad.",
-		commu = "comunidad",
-		happ = "Muestra el formulario de inscripción al equipo oficial de Transformice.",
-		team = "nombre_equipo",
-		help = "Muestra los comandos disponibles / las descripciones de los comandos.",
-		info = "Muestra información genial del bot.",
-		helper = "Muestra los Shades Helpers en línea en Discord.",
-		dress = "Envía la dirección del aspecto de ti o de alguien. Acepta el nombre de usuario como parámetro.",
-		mt = "Muestra los miembros en línea del Module Team.",
-		fs = "Muestra los miembros en línea del Fashion Squad.",
-		fc = "Muestra los miembros en línea del Funcorp.",
-		sent = "Muestra los Centinelas en línea.",
-		sh = "Muestra los Shades Helper en línea.",
-		make = "Muestra como hacer un bot con Transfromage.",
-		nocmd = "No se ha encontrado el comando '%s'. :s",
-		hlist = "Escribe '%s nombre_comando' o ',%s nombre_comando' para saber más. Comandos Disponibles → %s",
-		link = "Muestra la URL final de las URLs acortadas.",
-		title = "Comprueba los siguientes títulos que vas a desbloquear.",
-		doc = "Documentación de Lua: %s",
-		nofaq = "Esta comunidad no tiene FAQ todavía. :(",
-		acommu = "Comunidades disponibles → %s",
-		app = "Envía una solicitud para '%s': %s",
-		noapp = "El equipo solicitado no ha sido encontrado. :(",
-		ateam = "Equipos disponibles → %s",
-		nohelp = "Susúrrame ',%s' para ver la lista de comandos.",
-		about = "Soy un bot del servidor '%s' ( %s ), mantenido por %s. Shades Helpers es un grupo con la intención de ayudar a todos, mayormente sobre módulos, lua, y cosas técnicas.",
-		nohelper = "No hay ningún Shade Helper en línea en Discord. :(",
-		onhelper = "Shades Helpers en línea en Discord: %s",
-		dmake = "Para crear un bot en Transformice necesitarás: - una de nuestras APIs, disponibles en Lua y en Python; - un token para que la API se conecte a Transformice; Puedes obtenerlo preguntando en nuestro servidor: %s",
-		outfit = "Aspecto de %s: %s",
-		onteam = "Miembros del%s en línea: %s",
-		noteam = "No hay miembros del%s en línea.",
-		spam = "Wow, %s; ¡Espera, cowboy! No me spamees con comandos.",
-		checktitle = "%d %s para «%s»",
-		notitle = "¡Usted ya tiene todos los títulos de stats! :O",
-		cheese = "quesos",
-		first = "firsts",
-		svnormal = "salvados en modo normal",
-		svhard = "salvados en modo difícil",
-		svdiv = "salvados en modo divino",
-		boot = "bootcamps"
-	}
-}, {
+local translate = setmetatable({ }, {
+	__newindex = function(this, index, value)
+		transfromage.translation.download(transfromage.enum.language[index], function()
+			-- Fix titles
+			transfromage.translation.free(transfromage.enum.language[index], nil, "^T_%d+")
+			transfromage.translation.set(transfromage.enum.language[index], "^T_%d+", function(titleName)
+				titleName = string.gsub(titleName, "<.->", '') -- Removes HTML
+				titleName = string.gsub(titleName, "[%*%_~]", "\\%1") -- Escape special characters
+				return titleName
+			end)
+
+			rawset(this, index, value)
+		end)
+	end,
 	__call = function(this, community, str, ...)
 		community = community and this[community] or this.en
+		if not community then
+			return "Loading translations..."
+		end
 
 		str = string.gsub(str, "%$(%w+)", function(line)
 			return community[line] or this.en[line] or ("$" .. line)
@@ -443,6 +322,142 @@ local translate = setmetatable({
 		return string.format(str, ...)
 	end
 })
+translate.en = {
+	-- Help
+	hdoc = "Sends the link of the Transformice Lua Documentation.",
+	faq = "Sends the link of the FAQ thread of a community.",
+	commu = "community",
+	happ = "Sends the application form link of a Transformice official team.",
+	team = "team_name",
+	help = "Displays the available commands / the commands descriptions.",
+	info = "Displays cool bot informations.",
+	helper = "Displays the Shades Helpers that are online on Discord.",
+	dress = "Sends a link of your/someone's outfit. Accepts a nickname as parameter.",
+	mt = "Displays the online public Module Team members.",
+	fs = "Displays the online public Fashion Squad members.",
+	fc = "Displays the online Funcorp members.",
+	sent = "Displays the online Sentinels.",
+	sh = "Displays the online Shades Helpers.",
+	make = "Shows how to make a bot with Transfromage.",
+	nocmd = "Command '%s' not found. :s", -- Name
+	hlist = "Type '%s command_name' or '%scommand_name ?' to learn more. Available Commands → %s", -- "help"
+	link = "Displays the final URL of shortened URLs. Receives an URL as parameter.",
+	title = "Checks the next titles you are about to unlock.",
+	-- Data
+	doc = "Lua documentation: %s", -- URL
+	nofaq = "This community doesn't have a FAQ yet. :(",
+	acommu = "Available communities → %s", -- List
+	app = "Apply to '%s': %s", -- Name, URL
+	noapp = "The requested team was not found. :(",
+	ateam = "Available teams → %s", -- List
+	nohelp = "Whisper me with ',%s' to get the command list.", -- "help"
+	about = "I'm a bot from the '%s' server ( %s ), maintained by %s. Shades Helpers is a group intended to help everyone, mostly about modules, lua, and technical stuff.", -- Name, URL, Name
+	nohelper = "No Shades Helpers online on Discord. :(",
+	onhelper = "Online Shades Helpers on Discord: %s",
+	dmake = "To make a bot in Transformice you'll need: - one of our APIs, which are available in Lua and Python; - a token for the API to connect to Transformice. You can get it all by asking in our server: %s", -- URL
+	-- Extra
+	outfit = "%s's outfit: %s", -- Name, URL
+	onteam = "Online%s members: %s", -- Name of the team (prefixed with a space), List
+	noteam = "No%s online members.", -- Name of the team (prefixed with a space)
+	spam = "Wow, %s; Hold on, cowboy! Don't spam me with commands.", -- Name
+	checktitle = "%d %s for «%s»",
+	notitle = "You already have all the titles from stats! :O",
+	-- Fields
+	cheese = "cheese",
+	first = "firsts",
+	svnormal = "saves in normal mode",
+	svhard = "saves in hard mode",
+	svdiv = "saves in divine mode",
+	boot = "bootcamps"
+}
+translate.br = {
+	hdoc = "Envia o link para a documentação Lua do Transformice.",
+	faq = "Envia o link do tópico FAQ de uma comunidade.",
+	commu = "comunidade",
+	happ = "Envia o link de um formulário de aplicação de uma equipe oficial do Transformice.",
+	team = "nome_equipe",
+	help = "Mostra os comandos disponíveis / a descrição dos comandos.",
+	info = "Mostra informações legais do bot.",
+	helper = "Mostra os Shades Helpers que estão online no Discord.",
+	dress = "Envia um link com seu visual, ou o de algum jogador. Aceita um nickname como parâmetro.",
+	mt = "Mostra os membros públicos online da Module Team.",
+	fs = "Mostra os membros públicos online da Fashion Squad.",
+	fc = "Mostra os membros online da Funcorp.",
+	sent = "Mostra os Sentinelas online.",
+	sh = "Mostra os Shades Helper online.",
+	make = "Mostra como fazer um bot com Transfromage.",
+	nocmd = "Comando '%s' não encontrado. :s",
+	hlist = "Digite '%s nome_comando' ou '%snome_comando ?' para ler mais. Comandos disponíveis → %s",
+	link = "Mostra a URL final de URLs encurtadas. Recebe uma URL como parâmetro.",
+	title = "Checa os próximos títulos que você está próximo de desbloquear.",
+	doc = "Documentação Lua: %s",
+	nofaq = "Essa comunidade ainda não tem uma FAQ. :(",
+	acommu = "Comunidades disponíveis → %s",
+	app = "Aplique para '%s': %s",
+	noapp = "A equipe pedida não foi encontrada. :(",
+	ateam = "Equipes disponíveis → %s",
+	nohelp = "Me cochiche com ',%s' para obter a lista de comandos.",
+	about = "Sou um bot do servidor '%s' ( %s ), mantido por %s. Shades Helpers é um grupo com a intenção de ajudar todo mundo, especialmente sobre módulos, lua e coisas técnicas.",
+	nohelper = "Não há Shades Helpers online no Discord. :(",
+	onhelper = "Shades Helpers Online no Discord: %s",
+	dmake = "Para fazer um bot no Transformice será necessário: - uma de nossas APIs, disponível em Lua e Python; - um token para a API se conectar ao Transformice; Você pode conseguir isso tudo em nosso server: %s",
+	outfit = "Visual de %s: %s",
+	onteam = "Membros online da%s: %s",
+	noteam = "Não há membros online da%s.",
+	spam = "Wow, %s; Calma aí, parceiro! Não me spame com comandos.",
+	checktitle = "%d %s para «%s»",
+	notitle = "Você já tem todos os títulos de stats! :O",
+	cheese = "queijos",
+	first = "firsts",
+	svnormal = "saves no modo normal",
+	svhard = "saves no modo difícil",
+	svdiv = "saves no modo divino",
+	boot = "bootcamps"
+}
+translate.es = {
+	hdoc = "Envía la dirección de la Documentación de Lua de Transformice",
+	faq = "Muestra el tema de FAQ de una comunidad.",
+	commu = "comunidad",
+	happ = "Muestra el formulario de inscripción al equipo oficial de Transformice.",
+	team = "nombre_equipo",
+	help = "Muestra los comandos disponibles / las descripciones de los comandos.",
+	info = "Muestra información genial del bot.",
+	helper = "Muestra los Shades Helpers en línea en Discord.",
+	dress = "Envía la dirección del aspecto de ti o de alguien. Acepta el nombre de usuario como parámetro.",
+	mt = "Muestra los miembros en línea del Module Team.",
+	fs = "Muestra los miembros en línea del Fashion Squad.",
+	fc = "Muestra los miembros en línea del Funcorp.",
+	sent = "Muestra los Centinelas en línea.",
+	sh = "Muestra los Shades Helper en línea.",
+	make = "Muestra como hacer un bot con Transfromage.",
+	nocmd = "No se ha encontrado el comando '%s'. :s",
+	hlist = "Escribe '%s nombre_comando' o ',%s nombre_comando' para saber más. Comandos Disponibles → %s",
+	link = "Muestra la URL final de las URLs acortadas.",
+	title = "Comprueba los siguientes títulos que vas a desbloquear.",
+	doc = "Documentación de Lua: %s",
+	nofaq = "Esta comunidad no tiene FAQ todavía. :(",
+	acommu = "Comunidades disponibles → %s",
+	app = "Envía una solicitud para '%s': %s",
+	noapp = "El equipo solicitado no ha sido encontrado. :(",
+	ateam = "Equipos disponibles → %s",
+	nohelp = "Susúrrame ',%s' para ver la lista de comandos.",
+	about = "Soy un bot del servidor '%s' ( %s ), mantenido por %s. Shades Helpers es un grupo con la intención de ayudar a todos, mayormente sobre módulos, lua, y cosas técnicas.",
+	nohelper = "No hay ningún Shade Helper en línea en Discord. :(",
+	onhelper = "Shades Helpers en línea en Discord: %s",
+	dmake = "Para crear un bot en Transformice necesitarás: - una de nuestras APIs, disponibles en Lua y en Python; - un token para que la API se conecte a Transformice; Puedes obtenerlo preguntando en nuestro servidor: %s",
+	outfit = "Aspecto de %s: %s",
+	onteam = "Miembros del%s en línea: %s",
+	noteam = "No hay miembros del%s en línea.",
+	spam = "Wow, %s; ¡Espera, cowboy! No me spamees con comandos.",
+	checktitle = "%d %s para «%s»",
+	notitle = "¡Usted ya tiene todos los títulos de stats! :O",
+	cheese = "quesos",
+	first = "firsts",
+	svnormal = "salvados en modo normal",
+	svhard = "salvados en modo difícil",
+	svdiv = "salvados en modo divino",
+	boot = "bootcamps"
+}
 
 -- Functions
 do
@@ -1554,14 +1569,6 @@ tfm:once("connection", protect(function()
 			tfm:joinChat(chat)
 		end
 	end
-
-	-- Title list
-	transfromage.translation.free(transfromage.enum.language.en, nil, "^T_%d+")
-	transfromage.translation.set(transfromage.enum.language.en, "^T_%d+", function(titleName)
-		titleName = string.gsub(titleName, "<.->", '') -- Removes HTML
-		titleName = string.gsub(titleName, "[%*%_~]", "\\%1") -- Escape special characters
-		return titleName
-	end)
 end))
 
 tfm:once("joinTribeHouse", protect(function()
@@ -1666,6 +1673,10 @@ tfm:on("profileLoaded", protect(function(data)
 	elseif checkTitles[data.playerName] then
 		local gender = (data.gender % 2 + 1)
 
+		local commu = checkTitles[data.playerName].playerCommunity
+		if not translate[commu] then
+			commu = "en"
+		end
 
 		data.savesNormal, data.savesHard, data.savesDivine = data.saves.normal, data.saves.hard, data.saves.divine -- comp
 
@@ -1683,19 +1694,19 @@ tfm:on("profileLoaded", protect(function(data)
 
 			for i = 1, #titleRequirements[field] do
 				if data[field] < titleRequirements[field][i][2] then
-					title, hasGender = transfromage.translation.get(transfromage.enum.language.en, "T_" .. titleRequirements[field][i][1])
+					title, hasGender = transfromage.translation.get(transfromage.enum.language[commu], "T_" .. titleRequirements[field][i][1])
 					title = (title and (hasGender and title[gender] or title) or titleRequirements[field][i][1])
 
 					counter = counter + 1
-					out[counter] = translate(checkTitles[data.playerName].playerCommunity, titleFieldsKeys[f]) 
-					out[counter] = translate(checkTitles[data.playerName].playerCommunity, "$checktitle", (titleRequirements[field][i][2] - data[field]), out[counter], title .. stars)
+					out[counter] = translate(commu, titleFieldsKeys[f]) 
+					out[counter] = translate(commu, "$checktitle", (titleRequirements[field][i][2] - data[field]), out[counter], title .. stars)
 					break
 				end
 			end
 		end
 
 		if #out == 0 then
-			out = translate(checkTitles[data.playerName].playerCommunity, "$notitle")
+			out = translate(commu, "$notitle")
 		else
 			out = table.concat(out, " | ")
 		end
@@ -1970,7 +1981,6 @@ tfm:on("newGame", protect(function(map)
 end))
 
 -- Initialize
-transfromage.translation.download(transfromage.enum.language.en)
 tfm:setCommunity(transfromage.enum.community.sk)
 disc:run(DATA[5])
 DATA[5] = nil
