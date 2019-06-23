@@ -299,23 +299,26 @@ local titleFieldsKeys = { "$cheese", "$first", "$svnormal", "$svhard", "$svdiv",
 
 local translate = setmetatable({ }, {
 	__newindex = function(this, index, value)
-		transfromage.translation.download(transfromage.enum.language[index], function()
+		local lang = transfromage.enum.language[index]
+
+		os.log("↑info↓[TRANSLATION]↑ Downloading the language ↑highlight↓" .. lang .. "↑")
+		transfromage.translation.download(lang)
+
+		-- Using a timer because, somehow, download's callback doesn't work on Heroku.
+		timer.setTimeout(20000, function()
+			os.log("↑success↓[TRANSLATION]↑ Downloaded the language ↑highlight↓" .. lang .. "↑")
 			-- Fix titles
-			transfromage.translation.free(transfromage.enum.language[index], nil, "^T_%d+")
-			transfromage.translation.set(transfromage.enum.language[index], "^T_%d+", function(titleName)
+			transfromage.translation.free(lang, nil, "^T_%d+")
+			transfromage.translation.set(lang, "^T_%d+", function(titleName)
 				titleName = string.gsub(titleName, "<.->", '') -- Removes HTML
 				titleName = string.gsub(titleName, "[%*%_~]", "\\%1") -- Escape special characters
 				return titleName
 			end)
-
-			rawset(this, index, value)
 		end)
+		rawset(this, index, value)
 	end,
 	__call = function(this, community, str, ...)
 		community = community and this[community] or this.en
-		if not community then
-			return "Loading translations..."
-		end
 
 		str = string.gsub(str, "%$(%w+)", function(line)
 			return community[line] or this.en[line] or ("$" .. line)
@@ -365,11 +368,11 @@ translate.en = {
 	notitle = "You already have all the titles from stats! :O",
 	-- Fields
 	cheese = "cheese",
-	first = "firsts",
-	svnormal = "saves in normal mode",
-	svhard = "saves in hard mode",
-	svdiv = "saves in divine mode",
-	boot = "bootcamps"
+	first = "first%s",
+	svnormal = "save%s in normal mode",
+	svhard = "save%s in hard mode",
+	svdiv = "save%s in divine mode",
+	boot = "bootcamp%s"
 }
 translate.br = {
 	hdoc = "Envia o link para a documentação Lua do Transformice.",
@@ -408,12 +411,12 @@ translate.br = {
 	spam = "Wow, %s; Calma aí, parceiro! Não me spame com comandos.",
 	checktitle = "%d %s para «%s»",
 	notitle = "Você já tem todos os títulos de stats! :O",
-	cheese = "queijos",
-	first = "firsts",
-	svnormal = "saves no modo normal",
-	svhard = "saves no modo difícil",
-	svdiv = "saves no modo divino",
-	boot = "bootcamps"
+	cheese = "queijo%s",
+	first = "first%s",
+	svnormal = "save%s no modo normal",
+	svhard = "save%s no modo difícil",
+	svdiv = "save%s no modo divino",
+	boot = "bootcamp%s"
 }
 translate.es = {
 	hdoc = "Envía la dirección de la Documentación de Lua de Transformice",
@@ -452,12 +455,12 @@ translate.es = {
 	spam = "Wow, %s; ¡Espera, cowboy! No me spamees con comandos.",
 	checktitle = "%d %s para «%s»",
 	notitle = "¡Usted ya tiene todos los títulos de stats! :O",
-	cheese = "quesos",
-	first = "firsts",
-	svnormal = "salvados en modo normal",
-	svhard = "salvados en modo difícil",
-	svdiv = "salvados en modo divino",
-	boot = "bootcamps"
+	cheese = "queso%s",
+	first = "first%s",
+	svnormal = "salvado%s en modo normal",
+	svhard = "salvado%s en modo difícil",
+	svdiv = "salvado%s en modo divino",
+	boot = "bootcamp%s"
 }
 
 -- Functions
@@ -1475,7 +1478,6 @@ disc:once("ready", function()
 		return error("[Heartbeat] Failed to connect.", transfromage.enum.errorLevel.high)
 	end)
 	protect(tfm.start)(tfm, DATA[3], DATA[4])
-	DATA[3], DATA[4] = nil, nil
 end)
 
 disc:on("messageCreate", protect(function(message)
@@ -1561,10 +1563,9 @@ disc:on("messageUpdate", protect(function(message)
 end))
 
 -- Transformice emitters
-tfm:once("ready", protect(function()
+tfm:on("ready", protect(function()
 	print("Connecting")
 	tfm:connect(DATA[1], DATA[2])
-	DATA[2] = nil
 end))
 
 tfm:once("heartbeat", protect(function()
@@ -1578,11 +1579,19 @@ tfm:on("ping", protect(function()
 	lastServerPing = timer.setTimeout(22 * 1000, error, "[Ping] Lost connection.", transfromage.enum.errorLevel.high)
 end))
 
+tfm:on("connectionFailed", protect(function()
+	tfm:start(DATA[3], DATA[4])
+end))
+
 tfm:on("disconnection", protect(function(connection)
 	error("[Connection] Disconnected from " .. connection.name .. ".", transfromage.enum.errorLevel[(connection.name == "main" and "high" or "low")])
 end))
 
 tfm:once("connection", protect(function()
+	DATA[2] = nil
+	DATA[3] = nil
+	DATA[4] = nil
+
 	print("Joining Tribe House")
 	tfm:joinTribeHouse()
 
@@ -1721,14 +1730,16 @@ tfm:on("profileLoaded", protect(function(data)
 			end
 
 			if not skip then
+				local missing
 				for i = 1, #titleRequirements[field] do
 					if data[field] < titleRequirements[field][i][2] then
 						title, hasGender = transfromage.translation.get(transfromage.enum.language[commu], "T_" .. titleRequirements[field][i][1])
 						title = (title and (hasGender and title[gender] or title) or titleRequirements[field][i][1])
+						missing = (titleRequirements[field][i][2] - data[field])
 
 						counter = counter + 1
-						out[counter] = translate(commu, titleFieldsKeys[f]) 
-						out[counter] = translate(commu, "$checktitle", (titleRequirements[field][i][2] - data[field]), out[counter], title .. stars)
+						out[counter] = translate(commu, titleFieldsKeys[f], (missing > 1 and 's' or ''))
+						out[counter] = translate(commu, "$checktitle", missing, out[counter], title .. stars)
 						break
 					end
 				end
