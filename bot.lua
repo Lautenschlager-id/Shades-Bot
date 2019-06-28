@@ -28,6 +28,7 @@ local disc = discordia.Client({
 })
 disc._options.routeDelay = 0
 local tfm = transfromage.client:new()
+tfm._process_xml = true
 
 -- Data
 local object = { }
@@ -63,237 +64,11 @@ local userCache = { }
 local profile = { }
 local checkTitles = { }
 
-local mapCategory = {
-	default = { "<:ground:506477349966053386>", 0x90B214 },
-	[0] = { "<:p0:563096585982967808>", 0xE0DBCC, "Normal" },
-	[1] = { "<:p1:563096585257615360>", 0xECB140, "Protected" },
-	[3] = { "<:bootcamp:512017071031451654>", 0x575F24, "Bootcamp" },
-	[4] = { "<:shaman:512015935989612544>", 0x94D8D5, "Shaman" },
-	[5] = { "<:p5:468937377981923339>", 0xBA3D13, "Art" },
-	[6] = { "<:p6:563096586394140682>", 0x908B86, "Mechanism" },
-	[7] = { "<:racing:512016668038266890>", 0xE8E8E8, "No-shaman" },
-	[8] = { "<:p8:563096583856586757>", 0x9585AC, "Dual shaman" },
-	[9] = { "<:tfm_cheese:458404666926039053>", 0xFDD599, "Miscellaneous" },
-	[10] = { "<:p10:563096585966452746>", 0x1B1919, "Survivor" },
-	[11] = { "<:p11:565931891849428992>", 0xAA4444, "Vampire" },
-	[17] = { "<:p17:565931895662051330>", 0xCC4F3A, "Racing" },
-	[18] = { "<:p18:565931898858242074>", 0x73B32D, "Defilante" },
-	[19] = { "<:p19:565931896979324958>", 0xD0CBCD, "Music" },
-	[22] = { "<:tribe:458407729736974357>", 0x8B6C4E, "Tribe House" },
-	[24] = { "<:p24:563098653036773389>", 0x1B1919, "Dual Shaman Survivor" },
-	[43] = { "<:p44:563096584741585049>", 0xF40000, "High Deleted" },
-	[44] = { "<:p44:563096584741585049>", 0xF40000, "Deleted" }
-}
+local mapCategory = require("data/mapCategory")
+local roleColors = require("data/roleColors")
 
-local roleColors = {
-	ModuleTeam = 0x7AC9C4,
-	FashionSquad = 0xEF98AA,
-	Funcorp = 0xFF9C00,
-	Sentinel = 0x2ECF73,
-	Moderator = 0xBABD2F,
-	Mapcrew = 0x2F7FCC,
-	ShadesHelpers = 0xF3D165
-}
+local titleRequirements = require("data/titleRequirements")
 
-local titleRequirements = {
-	cheeses = {
-		{ 0, 0 },
-		{ 5, 5 },
-		{ 6, 20 },
-		{ 7, 100 },
-		{ 8, 200 },
-		{ 35, 300 },
-		{ 36, 400 },
-		{ 37, 500 },
-		{ 26, 600 },
-		{ 27, 700 },
-		{ 28, 800 },
-		{ 29, 900 },
-		{ 30, 1000 },
-		{ 31, 1100 },
-		{ 32, 1200 },
-		{ 33, 1300 },
-		{ 34, 1400 },
-		{ 38, 1500 },
-		{ 39, 1600 },
-		{ 40, 1700 },
-		{ 41, 1800 },
-		{ 72, 2000 },
-		{ 73, 2300 },
-		{ 74, 2700 },
-		{ 75, 3200 },
-		{ 76, 3800 },
-		{ 77, 4600 },
-		{ 78, 6000 },
-		{ 79, 7000 },
-		{ 80, 8000 },
-		{ 81, 9001 },
-		{ 82, 10000 },
-		{ 83, 14000 },
-		{ 84, 18000 },
-		{ 85, 22000 },
-		{ 86, 26000 },
-		{ 87, 30000 },
-		{ 88, 34000 },
-		{ 89, 38000 },
-		{ 90, 42000 },
-		{ 91, 46000 },
-		{ 92, 50000 },
-		{ 234, 55000 },
-		{ 235, 60000 },
-		{ 236, 65000 },
-		{ 237, 70000 },
-		{ 238, 75000 },
-		{ 93, 80000 }
-	},
-	firsts = {
-		{ 9, 1 },
-		{ 10, 10 },
-		{ 11, 100 },
-		{ 12, 200 },
-		{ 42, 300 },
-		{ 43, 400 },
-		{ 44, 500 },
-		{ 45, 600 },
-		{ 46, 700 },
-		{ 47, 800 },
-		{ 48, 900 },
-		{ 49, 1000 },
-		{ 50, 1100 },
-		{ 51, 1200 },
-		{ 52, 1400 },
-		{ 53, 1600 },
-		{ 54, 1800 },
-		{ 55, 2000 },
-		{ 56, 2200 },
-		{ 57, 2400 },
-		{ 58, 2600 },
-		{ 59, 2800 },
-		{ 60, 3000 },
-		{ 61, 3200 },
-		{ 62, 3400 },
-		{ 63, 3600 },
-		{ 64, 3800 },
-		{ 65, 4000 },
-		{ 66, 4500 },
-		{ 67, 5000 },
-		{ 68, 5500 },
-		{ 69, 6000 },
-		{ 231, 7000 },
-		{ 232, 8000 },
-		{ 233, 9000 },
-		{ 70, 10000 },
-		{ 224, 12000 },
-		{ 225, 14000 },
-		{ 226, 16000 },
-		{ 227, 18000 },
-		{ 202, 20000 },
-		{ 228, 25000 },
-		{ 229, 30000 },
-		{ 230, 35000 },
-		{ 71, 40000 }
-	},
-	savesNormal = {
-		{ 1, 10 },
-		{ 2, 100 },
-		{ 3, 1000 },
-		{ 4, 2000 },
-		{ 13, 3000 },
-		{ 14, 4000 },
-		{ 15, 5000 },
-		{ 16, 6000 },
-		{ 17, 7000 },
-		{ 18, 8000 },
-		{ 19, 9000 },
-		{ 20, 10000 },
-		{ 21, 11000 },
-		{ 22, 12000 },
-		{ 23, 13000 },
-		{ 24, 14000 },
-		{ 25, 15000 },
-		{ 94, 16000 },
-		{ 95, 18000 },
-		{ 96, 20000 },
-		{ 97, 22000 },
-		{ 98, 24000 },
-		{ 99, 26000 },
-		{ 100, 28000 },
-		{ 101, 30000 },
-		{ 102, 35000 },
-		{ 103, 40000 },
-		{ 104, 45000 },
-		{ 105, 50000 },
-		{ 106, 55000 },
-		{ 107, 60000 },
-		{ 108, 65000 },
-		{ 109, 70000 },
-		{ 110, 75000 },
-		{ 111, 80000 },
-		{ 112, 85000 },
-		{ 113, 90000 },
-		{ 200, 100000 },
-		{ 114, 140000 }
-	},
-	savesHard = {
-		{ 213, 500 },
-		{ 214, 2000 },
-		{ 215, 4000 },
-		{ 216, 7000 },
-		{ 217, 10000 },
-		{ 218, 14000 },
-		{ 219, 18000 },
-		{ 220, 22000 },
-		{ 221, 26000 },
-		{ 222, 30000 },
-		{ 223, 34000 }
-	},
-	savesDivine = {
-		{ 324, 500 },
-		{ 325, 1000 },
-		{ 326, 2000 },
-		{ 327, 4000 },
-		{ 328, 7000 },
-		{ 329, 10000 },
-		{ 330, 15000 },
-		{ 331, 20000 },
-		{ 332, 25000 },
-		{ 333, 30000 },
-		{ 334, 40000 }
-	},
-	bootcamps = {
-		{ 256, 1 },
-		{ 257, 3 },
-		{ 258, 5 },
-		{ 259, 7 },
-		{ 260, 10 },
-		{ 261, 15 },
-		{ 262, 20 },
-		{ 263, 25 },
-		{ 264, 30 },
-		{ 265, 40 },
-		{ 266, 50 },
-		{ 267, 60 },
-		{ 268, 70 },
-		{ 269, 80 },
-		{ 270, 90 },
-		{ 271, 100 },
-		{ 272, 120 },
-		{ 273, 140 },
-		{ 274, 160 },
-		{ 275, 180 },
-		{ 276, 200 },
-		{ 277, 250 },
-		{ 278, 300 },
-		{ 279, 350 },
-		{ 280, 400 },
-		{ 281, 500 },
-		{ 282, 600 },
-		{ 283, 700 },
-		{ 284, 800 },
-		{ 285, 900 },
-		{ 286, 1000 }
-	}
-}
 local titleFields = { "cheeses", "firsts", "savesNormal", "savesHard", "savesDivine", "bootcamps" }
 local titleFieldsKeys = { "$cheese", "$first", "$svnormal", "$svhard", "$svdiv", "$boot" }
 
@@ -315,7 +90,7 @@ local translate = setmetatable({ }, {
 				return titleName
 			end)
 		end)
-		rawset(this, index, value)
+		rawset(this, index, require("data/lang/" .. index))
 	end,
 	__call = function(this, community, str, ...)
 		community = community and this[community] or this.en
@@ -326,142 +101,9 @@ local translate = setmetatable({ }, {
 		return string.format(str, ...)
 	end
 })
-translate.en = {
-	-- Help
-	hdoc = "Sends the link of the Transformice Lua Documentation.",
-	faq = "Sends the link of the FAQ thread of a community.",
-	commu = "community",
-	happ = "Sends the application form link of a Transformice official team.",
-	team = "team_name",
-	help = "Displays the available commands / the commands descriptions.",
-	info = "Displays cool bot informations.",
-	helper = "Displays the Shades Helpers that are online on Discord.",
-	dress = "Sends a link of your/someone's outfit. Accepts a nickname as parameter.",
-	mt = "Displays the online public Module Team members.",
-	fs = "Displays the online public Fashion Squad members.",
-	fc = "Displays the online Funcorp members.",
-	sent = "Displays the online Sentinels.",
-	sh = "Displays the online Shades Helpers.",
-	make = "Shows how to make a bot with Transfromage.",
-	nocmd = "Command '%s' not found. :s", -- Name
-	hlist = "Type '%s command_name' or '%scommand_name ?' to learn more. Available Commands → %s", -- "help"
-	link = "Displays the final URL of shortened URLs. Receives an URL as parameter.",
-	title = "Checks the next titles you or someone is about to unlock. Accepts a nickname as parameter.",
-	-- Data
-	doc = "Lua documentation: %s", -- URL
-	nofaq = "This community doesn't have a FAQ yet. :(",
-	acommu = "Available communities → %s", -- List
-	app = "Apply to '%s': %s", -- Name, URL
-	noapp = "The requested team was not found. :(",
-	ateam = "Available teams → %s", -- List
-	nohelp = "Whisper me with ',%s' to get the command list.", -- "help"
-	about = "I'm a bot from the '%s' server ( %s ), maintained by %s. Shades Helpers is a group intended to help everyone, mostly about modules, lua, and technical stuff.", -- Name, URL, Name
-	nohelper = "No Shades Helpers online on Discord. :(",
-	onhelper = "Online Shades Helpers on Discord: %s",
-	dmake = "To make a bot in Transformice you'll need: - one of our APIs, which are available in Lua and Python; - a token for the API to connect to Transformice. You can get it all by asking in our server: %s", -- URL
-	-- Extra
-	outfit = "%s's outfit: %s", -- Name, URL
-	onteam = "Online%s members: %s", -- Name of the team (prefixed with a space), List
-	noteam = "No%s online members.", -- Name of the team (prefixed with a space)
-	spam = "Wow, %s; Hold on, cowboy! Don't spam me with commands.", -- Name
-	checktitle = "%d %s for «%s»",
-	notitle = "You already have all the titles from stats! :O",
-	-- Fields
-	cheese = "cheese",
-	first = "first%s",
-	svnormal = "save%s in normal mode",
-	svhard = "save%s in hard mode",
-	svdiv = "save%s in divine mode",
-	boot = "bootcamp%s"
-}
-translate.br = {
-	hdoc = "Envia o link para a documentação Lua do Transformice.",
-	faq = "Envia o link do tópico FAQ de uma comunidade.",
-	commu = "comunidade",
-	happ = "Envia o link de um formulário de aplicação de uma equipe oficial do Transformice.",
-	team = "nome_equipe",
-	help = "Mostra os comandos disponíveis / a descrição dos comandos.",
-	info = "Mostra informações legais do bot.",
-	helper = "Mostra os Shades Helpers que estão online no Discord.",
-	dress = "Envia um link com seu visual, ou o de algum jogador. Aceita um nickname como parâmetro.",
-	mt = "Mostra os membros públicos online da Module Team.",
-	fs = "Mostra os membros públicos online da Fashion Squad.",
-	fc = "Mostra os membros online da Funcorp.",
-	sent = "Mostra os Sentinelas online.",
-	sh = "Mostra os Shades Helper online.",
-	make = "Mostra como fazer um bot com Transfromage.",
-	nocmd = "Comando '%s' não encontrado. :s",
-	hlist = "Digite '%s nome_comando' ou '%snome_comando ?' para ler mais. Comandos disponíveis → %s",
-	link = "Mostra a URL final de URLs encurtadas. Recebe uma URL como parâmetro.",
-	title = "Checa os próximos títulos que você ou alguém está próximo de desbloquear. Aceita um nickname como parâmetro.",
-	doc = "Documentação Lua: %s",
-	nofaq = "Essa comunidade ainda não tem uma FAQ. :(",
-	acommu = "Comunidades disponíveis → %s",
-	app = "Aplique para '%s': %s",
-	noapp = "A equipe pedida não foi encontrada. :(",
-	ateam = "Equipes disponíveis → %s",
-	nohelp = "Me cochiche com ',%s' para obter a lista de comandos.",
-	about = "Sou um bot do servidor '%s' ( %s ), mantido por %s. Shades Helpers é um grupo com a intenção de ajudar todo mundo, especialmente sobre módulos, lua e coisas técnicas.",
-	nohelper = "Não há Shades Helpers online no Discord. :(",
-	onhelper = "Shades Helpers Online no Discord: %s",
-	dmake = "Para fazer um bot no Transformice será necessário: - uma de nossas APIs, disponível em Lua e Python; - um token para a API se conectar ao Transformice; Você pode conseguir isso tudo em nosso server: %s",
-	outfit = "Visual de %s: %s",
-	onteam = "Membros online da%s: %s",
-	noteam = "Não há membros online da%s.",
-	spam = "Wow, %s; Calma aí, parceiro! Não me spame com comandos.",
-	checktitle = "%d %s para «%s»",
-	notitle = "Você já tem todos os títulos de stats! :O",
-	cheese = "queijo%s",
-	first = "first%s",
-	svnormal = "save%s no modo normal",
-	svhard = "save%s no modo difícil",
-	svdiv = "save%s no modo divino",
-	boot = "bootcamp%s"
-}
-translate.es = {
-	hdoc = "Envía la dirección de la Documentación de Lua de Transformice",
-	faq = "Muestra el tema de FAQ de una comunidad.",
-	commu = "comunidad",
-	happ = "Muestra el formulario de inscripción al equipo oficial de Transformice.",
-	team = "nombre_equipo",
-	help = "Muestra los comandos disponibles / las descripciones de los comandos.",
-	info = "Muestra información genial del bot.",
-	helper = "Muestra los Shades Helpers en línea en Discord.",
-	dress = "Envía la dirección del aspecto de ti o de alguien. Acepta el nombre de usuario como parámetro.",
-	mt = "Muestra los miembros en línea del Module Team.",
-	fs = "Muestra los miembros en línea del Fashion Squad.",
-	fc = "Muestra los miembros en línea del Funcorp.",
-	sent = "Muestra los Centinelas en línea.",
-	sh = "Muestra los Shades Helper en línea.",
-	make = "Muestra como hacer un bot con Transfromage.",
-	nocmd = "No se ha encontrado el comando '%s'. :s",
-	hlist = "Escribe '%s nombre_comando' o ',%s nombre_comando' para saber más. Comandos Disponibles → %s",
-	link = "Muestra la URL final de las URLs acortadas.",
-	title = "Comprueba los siguientes títulos que usted o alguien va a desbloquear. Acepta el nombre de usuario como parámetro.",
-	doc = "Documentación de Lua: %s",
-	nofaq = "Esta comunidad no tiene FAQ todavía. :(",
-	acommu = "Comunidades disponibles → %s",
-	app = "Envía una solicitud para '%s': %s",
-	noapp = "El equipo solicitado no ha sido encontrado. :(",
-	ateam = "Equipos disponibles → %s",
-	nohelp = "Susúrrame ',%s' para ver la lista de comandos.",
-	about = "Soy un bot del servidor '%s' ( %s ), mantenido por %s. Shades Helpers es un grupo con la intención de ayudar a todos, mayormente sobre módulos, lua, y cosas técnicas.",
-	nohelper = "No hay ningún Shade Helper en línea en Discord. :(",
-	onhelper = "Shades Helpers en línea en Discord: %s",
-	dmake = "Para crear un bot en Transformice necesitarás: - una de nuestras APIs, disponibles en Lua y en Python; - un token para que la API se conecte a Transformice; Puedes obtenerlo preguntando en nuestro servidor: %s",
-	outfit = "Aspecto de %s: %s",
-	onteam = "Miembros del%s en línea: %s",
-	noteam = "No hay miembros del%s en línea.",
-	spam = "Wow, %s; ¡Espera, cowboy! No me spamees con comandos.",
-	checktitle = "%d %s para «%s»",
-	notitle = "¡Usted ya tiene todos los títulos de stats! :O",
-	cheese = "queso%s",
-	first = "first%s",
-	svnormal = "salvado%s en modo normal",
-	svhard = "salvado%s en modo difícil",
-	svdiv = "salvado%s en modo divino",
-	boot = "bootcamp%s"
-}
+translate.en = true
+translate.br = true
+translate.es = true
 
 -- Functions
 do
@@ -611,7 +253,8 @@ local formatServerMemberList = function(str, role)
 
 	if data then
 		data = string.gsub(data, "#%d+", "`%1`")
-		data = string.gsub(data, ", ?", "\n")
+		data = string.gsub(data, "%[.-%]", "`%1`")
+		data = string.gsub(data, "| ?", "\n")
 	end
 
 	return {
@@ -895,32 +538,11 @@ do
 		return translate(language, "$hlist", prefix .. "help", prefix, prefix .. table.concat(src, (" | " .. prefix)))
 	end
 
-	local faqThread = {
-		AR = "https://atelier801.com/topic?f=6&t=855915",
-		BR = "https://atelier801.com/topic?f=5&t=918370",
-		CZ = "https://atelier801.com/topic?f=6&t=802213",
-		EN = "https://atelier801.com/topic?f=6&t=51414",
-		ES = "https://atelier801.com/topic?f=5&t=807135",
-		FI = "https://atelier801.com/topic?f=6&t=774915",
-		FR = "https://atelier801.com/section?f=6&s=262",
-		HR = "https://atelier801.com/topic?f=6&t=873492",
-		HU = "https://atelier801.com/topic?f=5&t=859467",
-		ID = "https://atelier801.com/topic?f=6&t=792769",
-		NL = "https://atelier801.com/topic?f=6&t=66171",
-		PL = "https://atelier801.com/topic?f=5&t=899050",
-		RO = "https://atelier801.com/topic?f=5&t=815405",
-		RU = "https://atelier801.com/topic?f=6&t=21566",
-		TR = "https://atelier801.com/topic?f=6&t=880318",
-		VK = "https://atelier801.com/topic?f=6&t=64966",
-	}
-	faqThread.GB = faqThread.EN
-	faqThread.PT = faqThread.BR
-	faqThread.SA = faqThread.AR
-
 	local teams = {
 		mt = { "Module Team", "https://goo.gl/ZJcnhZ" },
-		fs = { "Fashion Squad", "http://bit.ly/2I1FY4d" },
-		sh = { "Shades Helper", "https://discord.gg/quch83R" }
+		--fs = { "Fashion Squad", "http://bit.ly/2I1FY4d" },
+		sh = { "Shades Helper", "https://discord.gg/quch83R" },
+		mc = { "Mapcrew", "https://goo.gl/forms/V11VIzC68yCMzKSH3" }
 	}
 	local teamAliases = { }
 	-- MT
@@ -931,15 +553,18 @@ do
 	teamAliases.luadev = "mt"
 	teamAliases.dev = "mt"
 	-- FS
-	teamAliases.fashionsquad = "fs"
-	teamAliases["fashion squad"] = "fs"
-	teamAliases.fashion = "fs"
+	--teamAliases.fashionsquad = "fs"
+	--teamAliases["fashion squad"] = "fs"
+	--teamAliases.fashion = "fs"
 	-- SH
 	teamAliases.helper = "sh"
 	teamAliases.shades = "sh"
 	teamAliases.shelper = "sh"
 	teamAliases["shades helper"] = "sh"
 	teamAliases["shade helper"] = "sh"
+	-- MC
+	teamAliases.mapcrew = "mc"
+	teamAliases.map = "mc"
 
 	-- Whisper, Server
 	local c_mt = {
@@ -973,20 +598,6 @@ do
 			h = "$hdoc",
 			f = function()
 				return translate(playerCommunity, "$doc", "https://atelier801.com/topic?f=5&t=451587&p=1#m3")
-			end
-		},
-		["faq"] = {
-			link = true,
-			h = "$faq ',faq $commu'",
-			f = function(playerCommunity, param)
-				if param then
-					param = string.upper(param)
-					return faqThread[param] or translate(playerCommunity, "$nofaq")
-				else
-					return translate(playerCommunity, "$acommu", table.concat(table.map(faqThread, function(_, key)
-						return key
-					end), " | "))
-				end
 			end
 		},
 		["apply"] = {
@@ -1138,9 +749,38 @@ do
 				checkTitles[parameters] = { playerName = playerName, isDebugging = isDebugging, playerCommunity = playerCommunity }
 				tfm:sendCommand("profile " .. parameters)
 			end
+		},
+		["rank"] = {
+			h = "$hrank",
+			f = function(playerCommunity, isDebugging, playerName, parameters)
+				if parameters and #parameters > 2 then
+					parameters = string.toNickname(parameters, true)
+				else
+					parameters = playerName
+				end
+
+				local answer
+				local head, body = http.request("GET", "https://club-mice.com/mouse/" .. (string.gsub(parameters, '#', "%%23", 1)))
+				if head.code == 200 then
+					body = string.match(body, "<b>Rank</b>: (.-)<")
+					if body then
+						answer = translate(playerCommunity, "$rank", parameters, body)
+					else
+						answer = translate(playerCommunity, "$norank", parameters)
+					end
+				else
+					answer = translate(playerCommunity, "$interr")
+				end
+
+				if isDebugging then
+					return answer
+				else
+					tfm:sendWhisper(playerName, answer)
+				end
+			end
 		}
 	}
-	serverCommand = { -- message. param
+	serverCommand = { -- message, param
 		["help"] = {
 			pb = true,
 			h = "Displays the available commands / the commands descriptions.",
@@ -1248,7 +888,6 @@ do
 			h = "[Admin only] Clears the cache of the tables.",
 			f = function(message)
 				if message.author.id == disc.owner.id then
-					message:reply("Clearing cache")
 					xml = { queue = { } }
 					onlinePlayer = { }
 					for k, v in next, srcMemberListCmd do
@@ -1256,6 +895,7 @@ do
 						v._queue = { }
 						v._timer = 0
 					end
+					message:reply("Cleared cache")
 				else
 					message:reply("You are not a bot admin.")
 				end
@@ -1313,7 +953,7 @@ do
 					local msg = message:reply("Saving leaderboard")
 
 					-- Updates the module #bolodefchoco.ranking
-					local head, body = http.request("GET", "https://club-mice.com/ranking/mice/")
+					local head, body = http.request("GET", "https://club-mice.com/ranking/mice/general")
 
 					local ranking, counter, semicounter = { { } }, 1, 0
 					for value in string.gmatch(body, "<td>(.-)</td>") do
@@ -1321,7 +961,7 @@ do
 
 						ranking[counter][semicounter] = string.gsub(string.gsub(string.gsub(value, " *<.->", ''), "%(.-%)", ''), ',', '')
 
-						if semicounter == 7 then
+						if semicounter == 7 + 1 then
 							ranking[counter] = table.concat(ranking[counter], ']', 2)
 
 							semicounter = 0
@@ -1778,23 +1418,40 @@ tfm:insertPacketListener(6, 9, protect(function(self, packet, connection, C_CC) 
 
 		local l = srcMemberListCmd[team]
 		if not l then return end
+
 		l._loading = l._loading .. content
+
 		if missing == 0 then
 			local _team = team
 			team = string.gsub(team, "%u", " %1")
-			local out, counter = { }, 0
+
+			local commu, counter, commuList = { }, 0, { }
 			for k, v in next, json.decode(l._loading).members do
-				if v then
+				k = remDefaultDiscriminator(k)
+
+				-- Adds each name to its respective community
+				if not commuList[v] then
 					counter = counter + 1
-					out[counter] = remDefaultDiscriminator(k)
+					commuList[v] = counter
+					commu[commuList[v]] = { commu = v, list = { }, counter = 0 }
 				end
+				commu[commuList[v]].counter = commu[commuList[v]].counter + 1
+				commu[commuList[v]].list[commu[commuList[v]].counter] = k
 			end
-			if #out > 0 then
-				table.sort(out)
+
+			if counter > 0 then
+				table.sort(commu, function(commu1, commu2)
+					return commu1.commu < commu2.commu
+				end)
+				for i = 1, counter do
+					table.sort(commu[i].list)
+					commu[i] = "[" .. commu[i].commu .. "] " .. table.concat(commu[i].list, ", ")
+				end
+
 				l._onlineMembers.state = 1 -- Online
-				l._onlineMembers.data = table.concat(out, ", ") -- Data is sent together (text%data) because of %u→ %l
+				l._onlineMembers.data = table.concat(commu, " | ") -- Data is sent together (text%data) because of %u→ %l
 			else
-				l._onlineMembers.state = 0 -- Online
+				l._onlineMembers.state = 0 -- Offline
 				l._onlineMembers.data = ''
 			end
 			l._onlineMembers.team = team
