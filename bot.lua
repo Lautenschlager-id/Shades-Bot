@@ -20,7 +20,7 @@ local json = require("json")
 
 -- Libs
 local discordia = require("discordia")
-local transfromage = require("transfromage")
+local transfromage = require("Transfromage")
 
 -- Init
 local disc = discordia.Client({
@@ -29,6 +29,31 @@ local disc = discordia.Client({
 disc._options.routeDelay = 0
 local tfm = transfromage.client:new()
 tfm._process_xml = true
+
+-- Init methods
+string.trim = function(str)
+	return (string.gsub(tostring(str), "^ *(.*) *$", "%1"))
+end
+
+table.map = function(list, f)
+	local newList, counter = { }, 0
+	for k, v in next, list do
+		counter = counter + 1
+		newList[counter] = f(v, k)
+	end
+	return newList
+end
+
+table.keys = function(list, f)
+	local out, counter = { }, 0
+	for k, v in next, list do
+		if not f or f(k, v) then
+			counter = counter + 1
+			out[counter] = k
+		end
+	end
+	return out
+end
 
 -- Data
 local object = { }
@@ -63,6 +88,8 @@ local xml = { queue = { } }
 local userCache = { }
 local profile = { }
 local checkTitles = { }
+local friendRemoval
+local displayBlacklist = { }
 
 local mapCategory = require("data/mapCategory")
 local roleColors = require("data/roleColors")
@@ -77,10 +104,7 @@ local translate = setmetatable({ }, {
 		local lang = transfromage.enum.language[index]
 
 		os.log("↑info↓[TRANSLATION]↑ Downloading the language ↑highlight↓" .. lang .. "↑")
-		transfromage.translation.download(lang)
-
-		-- Using a timer because, somehow, download's callback doesn't work on Heroku.
-		timer.setTimeout(20000, function()
+		transfromage.translation.download(lang, function()
 			os.log("↑success↓[TRANSLATION]↑ Downloaded the language ↑highlight↓" .. lang .. "↑")
 			-- Fix titles
 			transfromage.translation.free(lang, nil, "^T_%d+")
@@ -90,6 +114,7 @@ local translate = setmetatable({ }, {
 				return titleName
 			end)
 		end)
+
 		rawset(this, index, require("data/lang/" .. index))
 	end,
 	__call = function(this, community, str, ...)
@@ -104,6 +129,23 @@ local translate = setmetatable({ }, {
 translate.en = true
 translate.br = true
 translate.es = true
+
+local ENV
+local toDelete = setmetatable({}, {
+	__newindex = function(list, index, value)
+		if value then
+			if value.channel then
+				value = { value.id }
+			else
+				value = table.map(value, function(c)
+					return c.id
+				end)
+			end
+
+			rawset(list, index, value)
+		end
+	end
+})
 
 -- Functions
 do
@@ -266,30 +308,6 @@ local formatServerMemberList = function(str, role)
 	}
 end
 
-string.trim = function(str)
-	return (string.gsub(tostring(str), "^ *(.*) *$", "%1"))
-end
-
-table.map = function(list, f)
-	local newList, counter = { }, 0
-	for k, v in next, list do
-		counter = counter + 1
-		newList[counter] = f(v, k)
-	end
-	return newList
-end
-
-table.keys = function(list, f)
-	local out, counter = { }, 0
-	for k, v in next, list do
-		if not f or f(k, v) then
-			counter = counter + 1
-			out[counter] = k
-		end
-	end
-	return out
-end
-
 local splitMsgByWord = function(user, msg, maxMsgs, countByByte)
 	user = (user and ("[" .. user .. "] ") or '')
 
@@ -390,6 +408,36 @@ end
 local getCommunityCode = function(playerCommunity)
 	local commu = transfromage.enum.chatCommunity(playerCommunity)
 	return (commu ~= "az" and commu ~= "ch" and commu ~= "sk") and commu or "int"
+end
+
+local splitByLine = function(content, max)
+	max = max or 1850
+
+	local data = {}
+
+	if content == '' or content == "\n" then return data end
+
+	local current, tmp = 1, ''
+	for line in string.gmatch(content, "([^\n]*)[\n]?") do
+		tmp = tmp .. line .. "\n"
+
+		if #tmp > max then
+			data[current] = tmp
+			tmp = ''
+			current = current + 1
+		end
+	end
+	if #tmp > 0 then data[current] = tmp end
+
+	return data
+end
+
+local printf = function(...)
+	local out = { }
+	for arg = 1, select('#', ...) do
+		out[arg] = tostring(select(arg, ...))
+	end
+	return table.concat(out, "\t")
 end
 
 -- Command Functions
@@ -992,7 +1040,123 @@ do
 			end
 		},
 		["sentinel"] = c_sent,
-		["shelpers"] = c_sh
+		["shelpers"] = c_sh,
+		["friend"] = {
+			h = "[Admin only] Adds a player.",
+			f = function(message, parameters)
+				if message.author.id == disc.owner.id then
+					tfm:addFriend(string.toNickname(parameters, true))
+				else
+					message:reply("You are not a bot admin.")
+				end
+			end
+		},
+		["unfriend"] = {
+			h = "[Admin only] Adds a player.",
+			f = function(message, parameters)
+				if message.author.id == disc.owner.id then
+					parameters = string.toNickname(parameters, true)
+
+					friendRemoval = parameters
+					tfm:removeFriend(parameters)
+				else
+					message:reply("You are not a bot admin.")
+				end
+			end
+		},
+		["block"] = {
+			h = "[Admin only] Blacklists a player.",
+			f = function(message, parameters)
+				if message.author.id == disc.owner.id then
+					parameters = string.toNickname(parameters, true)
+
+					tfm:blacklistPlayer(parameters)
+					settingchannel.discussion:send("@here " .. parameters .. " blacklisted.")
+				else
+					message:reply("You are not a bot admin.")
+				end
+			end
+		},
+		["unblock"] = {
+			h = "[Admin only] Whitelists a player.",
+			f = function(message, parameters)
+				if message.author.id == disc.owner.id then
+					parameters = string.toNickname(parameters, true)
+
+					tfm:whitelistPlayer(parameters)
+					settingchannel.discussion:send("@here " .. parameters .. " whitelisted.")
+				else
+					message:reply("You are not a bot admin.")
+				end
+			end
+		},
+		["lua"] = {
+			h = "[Admin only] Executes lua using the bot environment.",
+			f = function(message, parameters)
+				if message.author.id ~= disc.owner.id then
+					toDelete[message.id] = message:reply("You are not a bot admin.")
+					return
+				end
+
+				-- Chunks from @Modulo
+				if not parameters or #parameters < 3 then
+					toDelete[message.id] = message:reply("Invalid syntax.")
+					return
+				end
+
+				local foo
+				foo, parameters = string.match(parameters, "`(`?`?)(.*)%1`")
+
+				if not parameters or #parameters == 0 then
+					toDelete[message.id] = message:reply("Invalid syntax.")
+					return
+				end
+
+				local lua_tag, final = string.find(string.lower(parameters), "^lua\n+")
+				if lua_tag then
+					parameters = string.sub(parameters, final + 1)
+				end
+
+				local data = { }
+				ENV.print = function(...)
+					local content = printf(...)
+					data[#data + 1] = (content ~= '' and content ~= ' ' and content ~= '\t' and content ~= '\n') and content or nil
+				end
+				ENV.message = message
+				ENV.me = message.member
+				ENV.channel = message.channel
+				ENV.guild = message.guild
+
+				local func, syntaxErr = load(parameters, '', 't', ENV)
+				if syntaxErr then
+					toDelete[message.id] = message:reply("Syntax error:\n```\n" .. tostring(syntaxErr) .. "```")
+					return
+				end
+
+				local success, runtimeErr = pcall(func)
+				if not success then
+					toDelete[message.id] = message:reply("Runtime error:\n```\n" .. tostring(runtimeErr) .. "```")
+					return
+				end
+
+				data = splitByLine(table.concat(data, "\n"))
+				for line = 1, #data do
+					toDelete[message.id] = message:reply({
+						embed = {
+							color = 0xFFAA00,
+							description = data[line]
+						}
+					})
+				end
+			end
+		},
+		["blacklist"] = {
+			h = "Displays the bot's blacklist.",
+			f = function(message)
+				displayBlacklist[#displayBlacklist + 1] = message
+				tfm:requestBlackList()
+			end
+		},
 	}
 end
 
@@ -1192,6 +1356,16 @@ end))
 disc:on("messageDelete", protect(function(message)
 	if message.channel.id == settingchannel.memberList.id then
 		return remHelper(message.content)
+	elseif toDelete[message.id] then
+		local msg
+		for id = 1, #toDelete[message.id] do
+			msg = message.channel:getMessage(toDelete[message.id][id])
+			if msg then
+				msg:delete()
+			end
+		end
+
+		toDelete[message.id] = nil
 	end
 end))
 
@@ -1199,6 +1373,9 @@ disc:on("messageUpdate", protect(function(message)
 	if message.channel.id == settingchannel.memberList.id then
 		remHelper(message.content)
 		setHelper(message.content)
+	elseif toDelete[message.id] then
+		disc:emit("messageDelete", message)
+		disc:emit("messageCreate", message)
 	end
 end))
 
@@ -1679,7 +1856,102 @@ tfm:on("newGame", protect(function(map)
 	end
 end))
 
+tfm:on("addFriend", protect(function(friend)
+	settingchannel.discussion:send("@here " .. friend.playerName .. " has been added to the friendlist.")
+end))
+
+tfm:on("removeFriend", protect(function(playerId)
+	settingchannel.discussion:send("@here " .. tostring(friendRemoval) .. " (" .. playerId .. ") has been removed from the friendlist.")
+	friendRemoval = nil
+end))
+
+tfm:on("blackList", protect(function(blacklist)
+	local len = #blacklist
+	local embed = {
+		embed = {
+			color = 0,
+			description = "Total blacklisted players: **" .. len .. "**\n\n" .. (len > 0 and (":skull: **" .. table.concat(blacklist, "**\n:skull: **")) or "**None**") .. "**"
+		}
+	}
+
+	for i = 1, #displayBlacklist do
+		embed.embed.timestamp = displayBlacklist[i].timestamp
+		displayBlacklist[i]:reply(embed)
+	end
+	displayBlacklist = { }
+end))
+
 -- Initialize
 tfm:setCommunity(transfromage.enum.community.sk)
 disc:run(DATA[5])
 DATA[5] = nil
+
+-- Env
+ENV = setmetatable({
+	bit32 = bit,
+	CHAR_LIM = CHAR_LIM,
+	CHAT_MSG_LIM = CHAT_MSG_LIM,
+	WHISPER_MSG_LIM = WHISPER_MSG_LIM,
+	ANTI_SPAM_TIME = ANTI_SPAM_TIME,
+	timer = timer,
+	http = http,
+	json = json,
+	discordia = discordia,
+	transfromage = transfromage,
+	disc = disc,
+	tfm = tfm,
+	object = object,
+	channel = channel,
+	settingchannel = settingchannel,
+	miscChannel = miscChannel,
+	categoryId = categoryId,
+	helper = helper,
+	isConnected = isConnected,
+	isWorking = isWorking,
+	dressroom = dressroom,
+	onlinePlayer = onlinePlayer,
+	timeCmd = timeCmd,
+	modulesCmd = modulesCmd,
+	xml = xml,
+	userCache = userCache,
+	profile = profile,
+	checkTitles = checkTitles,
+	displayBlacklist = displayBlacklist,
+	mapCategory = mapCategory,
+	roleColors = roleColors,
+	titleRequirements = titleRequirements,
+	titleFields = titleFields,
+	titleFieldsKeys = titleFieldsKeys,
+	translate = translate,
+	toDelete = toDelete,
+	protect = protect,
+	removeSpaces = removeSpaces,
+	formatReceiveText = formatReceiveText,
+	formatSendText = formatSendText,
+	formatServerMemberList = formatServerMemberList,
+	splitMsgByWord = splitMsgByWord,
+	encodeUrl = encodeUrl,
+	srcMemberListCmd = srcMemberListCmd,
+	createListCommand = createListCommand,
+	getCommunityCode = getCommunityCode,
+	splitByLine = splitByLine,
+	printf = print,
+	secToDate = secToDate,
+	remDefaultDiscriminator = remDefaultDiscriminator,
+	getCommandParameters = getCommandParameters,
+	userAntiSpam = userAntiSpam,
+	executeCommand = executeCommand,
+	setHelper = setHelper,
+	remHelper = remHelper,
+	dressroomLink = dressroomLink,
+	loadXmlQueue = loadXmlQueue,
+	chatHelpSource = chatHelpSource,
+	whisperHelpSource = whisperHelpSource,
+	memberHelpSource = memberHelpSource,
+	commandWrapper = commandWrapper,
+	chatCommand = chatCommand,
+	whisperCommand = whisperCommand,
+	serverCommand = serverCommand
+}, {
+	__index = _G
+})
