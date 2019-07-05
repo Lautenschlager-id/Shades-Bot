@@ -16,9 +16,9 @@ return {
 	make = "Shows how to make a bot with Transfromage.",
 	nocmd = "Command '%s' not found. :s", -- Name
 	hlist = "Type '%s command_name' or '%scommand_name ?' to learn more. Available Commands → %s", -- "help"
-	link = "Displays the final URL of shortened URLs. Receives an URL as parameter.",
 	title = "Checks the next titles you or someone is about to unlock. Accepts a nickname as parameter.",
 	hrank = "Displays the position of a player in Club-Mice's leaderboard. Accepts a nickname as parameter.",
+	inv = "Sends the invitation link to join the 'Fifty Shades of Lua' discord server.",
 	-- Data
 	doc = "Lua documentation: %s", -- URL
 	app = "Apply to '%s': %s", -- Name, URL
