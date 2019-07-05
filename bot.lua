@@ -1749,7 +1749,7 @@ tfm:on("newGame", protect(function(map)
 			if xml[map.code]._xmlOnly then
 				local m = xml[map.code].message:reply({
 					content = "<@" .. xml[map.code].message.author.id .. ">, the XML of the map is in the attached file.",
-					file = { "XML-" .. map.code, map.xml }
+					file = { map.code .. ".xml", map.xml }
 				})
 				timer.setTimeout(20000, function(m)
 					m:delete()
