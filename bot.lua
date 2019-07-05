@@ -748,43 +748,6 @@ do
 		},
 		["sentinel"] = c_sent,
 		["shelpers"] = c_sh,
-		["link"] = {
-			link = true,
-			h = "$link",
-			f = function(playerCommunity, isDebugging, playerName, parameters)
-				if not parameters then return end
-				if not string.find(parameters, "^https?://") then
-					parameters = "http://" .. parameters
-				end
-
-				local final
-
-				local isLink, head = pcall(http.request, "GET", parameters)
-				if isLink then
-					local redir = parameters
-
-					while head.code == 301 do
-						for i = 1, #head do
-							if head[i][1] == "Location" then
-								redir = head[i][2]
-								head = http.request("GET", redir)
-								break
-							end
-						end
-					end
-
-					final = "The final link is: " .. redir
-				else
-					final = "Invalid or unavailable link."
-				end
-
-				if isDebugging then
-					return final
-				else
-					tfm:sendWhisper(playerName, final)
-				end
-			end
-		},
 		["title"] = {
 			h = "$title",
 			f = function(playerCommunity, isDebugging, playerName, parameters)
@@ -824,6 +787,17 @@ do
 					return answer
 				else
 					tfm:sendWhisper(playerName, answer)
+				end
+			end
+		},
+		["inv"] = {
+			h = "$inv",
+			f = function(playerCommunity, isDebugging, playerName)
+				local t = "'Fifty Shades of Lua' discord server link → discord.gg/quch83R"
+				if isDebugging then
+					return t
+				else
+					tfm:sendWhisper(playerName, t)
 				end
 			end
 		}
@@ -990,7 +964,7 @@ do
 					profile[parameters] = message.channel.id
 					tfm:sendCommand("profile " .. parameters)
 				else
-					message:reply("Invalid nickname '" .. parameters .. "'")
+					message:reply("Invalid nickname '" .. tostring(parameters) .. "'")
 				end
 			end
 		},
@@ -1771,20 +1745,15 @@ tfm:on("newGame", protect(function(map)
 		timer.clearTimeout(xml[map.code].timer)
 
 		if #map.xml <= 23000 then
-			local err, head, body = false
+			local head, body
 			if xml[map.code]._xmlOnly then
-				head, body = http.request("POST", "https://hastebin.com/documents", nil, map.xml)
-
-				if head.code == 200 then
-					body = json.decode(body)
-
-					local m = xml[map.code].message:reply("<@" .. xml[map.code].message.author.id .. ">, the XML of the map **" .. map.code .. "** is **https://hastebin.com/" .. tostring(body.key) .. "**")
-					timer.setTimeout(20000, function(m)
-						m:delete()
-					end, m)
-				else
-					err = true
-				end
+				local m = xml[map.code].message:reply({
+					content = "<@" .. xml[map.code].message.author.id .. ">, the XML of the map is in the attached file.",
+					file = { "XML-" .. map.code, map.xml }
+				})
+				timer.setTimeout(20000, function(m)
+					m:delete()
+				end, m)
 			else
 				head, body = http.request("POST", "https://xml-drawer.herokuapp.com/", { { "content-type", "application/x-www-form-urlencoded" } }, "xml=" .. encodeUrl(map.xml))
 
@@ -1808,31 +1777,27 @@ tfm:on("newGame", protect(function(map)
 
 					os.remove(tmp)
 				else
-					err = true
-				end
-			end
-
-			if err then
-				xml[map.code].message:reply({
-					content = "<@" .. xml[map.code].message.author.id .. ">",
-					embed = {
-						color = 0x36393F,
-						title = "Fail",
-						description = "Internal error :( Try again later",
-						fields = {
-							[1] = {
+					xml[map.code].message:reply({
+						content = "<@" .. xml[map.code].message.author.id .. ">",
+						embed = {
+							color = 0x36393F,
+							title = "Fail",
+							description = "Internal error :( Try again later",
+							fields = {
+								[1] = {
 								name = "Head code",
-								value = tostring(head and head.code),
-								inline = true
-							},
-							[2] = {
-								name = "Body",
-								value = tostring(body and string.sub(body, 1, 500)),
-								inline = true
-							},
+										value = tostring(head and head.code),
+									inline = true
+								},
+								[2] = {
+									name = "Body",
+									value = tostring(body and string.sub(body, 1, 500)),
+									inline = true
+								},
+							}
 						}
-					}
-				})
+					})
+				end
 			end
 		else
 			xml[map.code].message:reply({
@@ -1856,7 +1821,7 @@ tfm:on("newGame", protect(function(map)
 	end
 end))
 
-tfm:on("addFriend", protect(function(friend)
+tfm:on("newFriend", protect(function(friend)
 	settingchannel.discussion:send("@here " .. friend.playerName .. " has been added to the friendlist.")
 end))
 
@@ -1870,7 +1835,7 @@ tfm:on("blackList", protect(function(blacklist)
 	local embed = {
 		embed = {
 			color = 0,
-			description = "Total blacklisted players: **" .. len .. "**\n\n" .. (len > 0 and (":skull: **" .. table.concat(blacklist, "**\n:skull: **")) or "**None**") .. "**"
+			description = "Total blacklisted players: **" .. len .. "**\n\n" .. (len > 0 and (":skull: **" .. table.concat(blacklist, "**\n:skull: **")) or "**None") .. "**"
 		}
 	}
 
