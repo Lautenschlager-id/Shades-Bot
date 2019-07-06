@@ -579,7 +579,7 @@ do
 			if commandWrapper[param] then
 				return "'" .. prefix .. param .. "' → " .. translate(language, tostring(commandWrapper[param]))
 			elseif cmdList[param] and (level ~= 3 or cmdList[param].pb) then
-				return "'" .. prefix .. param .. "' → " .. translate(language, tostring(cmdList[param]))
+				return "'" .. prefix .. param .. "' → " .. (cmdList[param].auth and ("[<@&" .. cmdList[param].auth .. "> only] ") or cmdList[param].owner and ("[Bot owner only] ") or '') .. translate(language, tostring(cmdList[param]))
 			end
 			return translate(language, "$nocmd", prefix .. param)
 		end
@@ -853,14 +853,11 @@ do
 			end
 		},
 		["bolo"] = {
-			h = "[Admin only] Refreshes #bolodefchoco→\3*Editeur",
+			auth = "585148219395276801",
+			h = "Refreshes #bolodefchoco→\3*Editeur",
 			f = function(message)
-				if message.author.id == disc.owner.id then
-					message:reply("Refreshing #bolodefchoco→\3*Editeur")
-					tfm:sendCommand("module bolodefchoco")
-				else
-					message:reply("You are not a bot admin.")
-				end
+				message:reply("Refreshing #bolodefchoco→\3*Editeur")
+				tfm:sendCommand("module bolodefchoco")
 			end
 		},
 		["isonline"] = {
@@ -896,59 +893,48 @@ do
 			end
 		},
 		["xml"] = {
+			auth = "462329326600192010",
+			allowMember = true,
 			pb = true,
-			h = "Gets the XML of the map specified. [<@&462329326600192010> role is required]",
+			h = "Gets the XML of the map specified.",
 			f = function(message, parameters)
-				if (message.channel.category and message.channel.category.id ~= categoryId) and not message.member:hasRole("462329326600192010") then
-					return message:reply("<@" .. message.author.id .. ">, you must have the role <@&462329326600192010> in order to use this command!")
-				end
-
 				serverCommand["map"].f(message, parameters, true)
 			end
 		},
 		["clear"] = {
-			h = "[Admin only] Clears the cache of the tables.",
+			auth = "585148219395276801",
+			h = "Clears the cache of the tables.",
 			f = function(message)
-				if message.author.id == disc.owner.id then
-					xml = { queue = { } }
-					onlinePlayer = { }
-					for k, v in next, srcMemberListCmd do
-						v._loading = ''
-						v._queue = { }
-						v._timer = 0
-					end
-					message:reply("Cleared cache")
-				else
-					message:reply("You are not a bot admin.")
+				xml = { queue = { } }
+				onlinePlayer = { }
+				for k, v in next, srcMemberListCmd do
+					v._loading = ''
+					v._queue = { }
+					v._timer = 0
 				end
+				message:reply("Cleared cache")
 			end
 		},
 		["invth"] = {
-			h = "[Admin only] Invites Bolo to the tribe house.",
+			owner = true,
+			h = "Invites Bolo to the tribe house.",
 			f = function(message)
-				if message.author.id == disc.owner.id then
-					message:reply("Inviting")
-					tfm:sendCommand("inv Bolodefchoco#0000")
-				else
-					message:reply("You are not a bot admin.")
-				end
+				message:reply("Inviting")
+				tfm:sendCommand("inv Bolodefchoco#0000")
 			end
 		},
 		["goto"] = {
-			h = "[Admin only] Changes the Bot room.",
+			auth = "585148219395276801",
+			h = "Changes the Bot room.",
 			f = function(message, parameters)
 				if not parameters then return end
 
-				if message.author.id == disc.owner.id then
-					if parameters == "tribe" then
-						tfm:joinTribeHouse()
-						message:reply("Joined *\3Editeur!")
-					else
-						tfm:enterRoom(parameters)
-						message:reply("Joined room **" .. parameters .. "**")
-					end
+				if parameters == "tribe" then
+					tfm:joinTribeHouse()
+					message:reply("Joined *\3Editeur!")
 				else
-					message:reply("You are not a bot admin.")
+					tfm:enterRoom(parameters)
+					message:reply("Joined room **" .. parameters .. "**")
 				end
 			end
 		},
@@ -969,109 +955,87 @@ do
 			end
 		},
 		["rank"] = {
-			h = "[Admin only] Updates the database of #bolodefchoco0ranking.",
+			auth = "585148219395276801",
+			h = "Updates the database of #bolodefchoco0ranking.",
 			f = function(message)
-				if message.author.id == disc.owner.id then
-					local msg = message:reply("Saving leaderboard")
+				local msg = message:reply("Saving leaderboard")
 
-					-- Updates the module #bolodefchoco.ranking
-					local head, body = http.request("GET", "https://club-mice.com/ranking/mice/general")
+				-- Updates the module #bolodefchoco.ranking
+				local head, body = http.request("GET", "https://club-mice.com/ranking/mice/general")
 
-					local ranking, counter, semicounter = { { } }, 1, 0
-					for value in string.gmatch(body, "<td>(.-)</td>") do
-						semicounter = semicounter + 1
+				local ranking, counter, semicounter = { { } }, 1, 0
+				for value in string.gmatch(body, "<td>(.-)</td>") do
+					semicounter = semicounter + 1
 
-						ranking[counter][semicounter] = string.gsub(string.gsub(string.gsub(value, " *<.->", ''), "%(.-%)", ''), ',', '')
+					ranking[counter][semicounter] = string.gsub(string.gsub(string.gsub(value, " *<.->", ''), "%(.-%)", ''), ',', '')
 
-						if semicounter == 7 + 1 then
-							ranking[counter] = table.concat(ranking[counter], ']', 2)
+					if semicounter == 7 + 1 then
+						ranking[counter] = table.concat(ranking[counter], ']', 2)
 
-							semicounter = 0
-							counter = counter + 1
-							ranking[counter] = { }
-						end
+						semicounter = 0
+						counter = counter + 1
+						ranking[counter] = { }
 					end
-					ranking = table.concat(ranking, '[', 1, 100)
-
-					-- player]values[player2]values
-					tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(666):writeUTF(ranking)) -- Calls eventTextAreaCallback
-					msg:setContent("Leaderboard updated!")
-				else
-					message:reply("You are not a bot admin.")
 				end
+				ranking = table.concat(ranking, '[', 1, 100)
+
+				-- player]values[player2]values
+				tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(666):writeUTF(ranking)) -- Calls eventTextAreaCallback
+				msg:setContent("Leaderboard updated!")
 			end
 		},
 		["mem"] = {
-			h = "[Admin only] Checks the current memory usage.",
+			owner = true,
+			h = "Checks the current memory usage.",
 			f = function(message)
-				if message.author.id == disc.owner.id then
-					message:reply(tostring(collectgarbage("count")))
-					collectgarbage()
-					message:reply(tostring(collectgarbage("count")))
-				else
-					message:reply("You are not a bot admin.")
-				end
+				message:reply(tostring(collectgarbage("count")))
+				collectgarbage()
+				message:reply(tostring(collectgarbage("count")))
 			end
 		},
 		["sentinel"] = c_sent,
 		["shelpers"] = c_sh,
 		["friend"] = {
-			h = "[Admin only] Adds a player.",
+			auth = "585148219395276801",
+			h = "Adds a player.",
 			f = function(message, parameters)
-				if message.author.id == disc.owner.id then
-					tfm:addFriend(string.toNickname(parameters, true))
-				else
-					message:reply("You are not a bot admin.")
-				end
+				tfm:addFriend(string.toNickname(parameters, true))
 			end
 		},
 		["unfriend"] = {
-			h = "[Admin only] Adds a player.",
+			auth = "585148219395276801",
+			h = "Adds a player.",
 			f = function(message, parameters)
-				if message.author.id == disc.owner.id then
-					parameters = string.toNickname(parameters, true)
+				parameters = string.toNickname(parameters, true)
 
-					friendRemoval = parameters
-					tfm:removeFriend(parameters)
-				else
-					message:reply("You are not a bot admin.")
-				end
+				friendRemoval = parameters
+				tfm:removeFriend(parameters)
 			end
 		},
 		["block"] = {
-			h = "[Admin only] Blacklists a player.",
+			auth = "585148219395276801",
+			h = "Blacklists a player.",
 			f = function(message, parameters)
-				if message.author.id == disc.owner.id then
-					parameters = string.toNickname(parameters, true)
+				parameters = string.toNickname(parameters, true)
 
-					tfm:blacklistPlayer(parameters)
-					settingchannel.discussion:send("@here " .. parameters .. " blacklisted.")
-				else
-					message:reply("You are not a bot admin.")
-				end
+				tfm:blacklistPlayer(parameters)
+				settingchannel.discussion:send("@here " .. parameters .. " blacklisted.")
 			end
 		},
 		["unblock"] = {
-			h = "[Admin only] Whitelists a player.",
+			auth = "585148219395276801",
+			h = "Whitelists a player.",
 			f = function(message, parameters)
-				if message.author.id == disc.owner.id then
-					parameters = string.toNickname(parameters, true)
+				parameters = string.toNickname(parameters, true)
 
-					tfm:whitelistPlayer(parameters)
-					settingchannel.discussion:send("@here " .. parameters .. " whitelisted.")
-				else
-					message:reply("You are not a bot admin.")
-				end
+				tfm:whitelistPlayer(parameters)
+				settingchannel.discussion:send("@here " .. parameters .. " whitelisted.")
 			end
 		},
 		["lua"] = {
-			h = "[Admin only] Executes lua using the bot environment.",
+			owner = true,
+			h = "Executes lua using the bot environment.",
 			f = function(message, parameters)
-				if message.author.id ~= disc.owner.id then
-					toDelete[message.id] = message:reply("You are not a bot admin.")
-					return
-				end
-
 				-- Chunks from @Modulo
 				if not parameters or #parameters < 3 then
 					toDelete[message.id] = message:reply("Invalid syntax.")
@@ -1277,6 +1241,17 @@ disc:on("messageCreate", protect(function(message)
 
 		if serverCommand[cmd] then
 			if serverCommand[cmd].pb or isMember then
+				if message.author.id ~= client.owner.id then
+					if serverCommand[cmd].owner then
+						return message:reply("<@" .. message.author.id .. ">, you must be the bot owner in order to use this command!")
+					end
+					if serverCommand[cmd].auth and not (serverCommand[cmd].allowMember and isMember) then
+						if not message.member:hasRole(serverCommand[cmd].auth) then
+							return message:reply("<@" .. message.author.id .. ">, you must have the role <@&" .. serverCommand[cmd].auth .. "> in order to use this command!")
+						end
+					end
+				end
+
 				return serverCommand[cmd](message, param)
 			end
 		end
@@ -1540,7 +1515,7 @@ tfm:on("profileLoaded", protect(function(data)
 		if #out == 0 then
 			out = translate(commu, "$notitle")
 		else
-			out = table.concat(out, " | ")
+			out = table.concat(out, ", ")
 		end
 		out = "'" .. data.playerName .. "': " .. out
 
