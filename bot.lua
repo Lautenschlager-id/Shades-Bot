@@ -289,7 +289,7 @@ local formatSendText = function(str)
 	return str
 end
 
-local formatServerMemberList = function(str, role)
+local formatServerMemberList = function(str, role, requester)
 	local title, data = string.match(str, "(.-): (.*)")
 	title = title or str
 
@@ -303,7 +303,10 @@ local formatServerMemberList = function(str, role)
 		embed = {
 			color = (role and roleColors[role] or 0x36393F),
 			title = title,
-			description = data
+			description = data,
+			footer = {
+				text = "Requested by " .. requester
+			}
 		}
 	}
 end
@@ -384,7 +387,7 @@ local createListCommand = function(code)
 		if src._loading == '' then
 			if src._timer > os.time() then
 				if isServerCmd then
-					return isDebugging:reply(formatServerMemberList(src._onlineMembers(playerCommunity), name))
+					return isDebugging:reply(formatServerMemberList(src._onlineMembers(playerCommunity), name, isDebugging.author.fullname))
 				else
 					return src._onlineMembers(playerCommunity)
 				end
@@ -636,6 +639,7 @@ do
 		f = createListCommand(" sentinel")
 	}
 	local c_sh = {
+		pb = true,
 		h = "$sh",
 		f = createListCommand(" shades_helpers")
 	}
@@ -771,9 +775,9 @@ do
 				end
 
 				local answer
-				local head, body = http.request("GET", "https://club-mice.com/mouse/" .. (string.gsub(parameters, '#', "%%23", 1)))
+				local head, body = http.request("GET", "https://club-mice.com/transformice/mouse/" .. (string.gsub(parameters, '#', "%%23", 1)))
 				if head.code == 200 then
-					body = string.match(body, "<b>Rank</b>: (.-)<")
+					body = string.match(body, "<b>Position</b>: (.-)<")
 					if body then
 						answer = translate(playerCommunity, "$rank", parameters, body)
 					else
@@ -825,7 +829,7 @@ do
 			pb = true,
 			h = "Displays the list of online Moderators.",
 			f = function(message)
-				modList[message.channel.id] = true
+				modList[#modList + 1] = message
 				tfm:sendCommand("mod")
 			end
 		},
@@ -833,7 +837,7 @@ do
 			pb = true,
 			h = "Displays the list of online Mapcrew.",
 			f = function(message)
-				mapcrewList[message.channel.id] = true
+				mapcrewList[#mapcrewList + 1] = message
 				tfm:sendCommand("mapcrew")
 			end
 		},
@@ -961,7 +965,7 @@ do
 				local msg = message:reply("Saving leaderboard")
 
 				-- Updates the module #bolodefchoco.ranking
-				local head, body = http.request("GET", "https://club-mice.com/ranking/mice/general")
+				local head, body = http.request("GET", "https://club-mice.com/transformice/ranking/mice/?p=1")
 
 				local ranking, counter, semicounter = { { } }, 1, 0
 				for value in string.gmatch(body, "<td>(.-)</td>") do
@@ -1219,7 +1223,7 @@ disc:once("ready", function()
 		if isConnected then return end
 		return error("[Heartbeat] Failed to connect.", transfromage.enum.errorLevel.high)
 	end)
-	protect(tfm.start)(tfm, DATA[3], DATA[4])
+	tfm:emit("connectionFailed")
 end)
 
 disc:on("messageCreate", protect(function(message)
@@ -1241,7 +1245,7 @@ disc:on("messageCreate", protect(function(message)
 
 		if serverCommand[cmd] then
 			if serverCommand[cmd].pb or isMember then
-				if message.author.id ~= client.owner.id then
+				if message.author.id ~= disc.owner.id then
 					if serverCommand[cmd].owner then
 						return message:reply("<@" .. message.author.id .. ">, you must be the bot owner in order to use this command!")
 					end
@@ -1586,7 +1590,7 @@ tfm:insertPacketListener(6, 9, protect(function(self, packet, connection, C_CC) 
 			for i = 1, #l._queue do
 				if l._queue[i].isDebugging then
 					if l._queue[i].isServerCmd then
-						l._queue[i].isDebugging:reply(formatServerMemberList(l._onlineMembers(), _team))
+						l._queue[i].isDebugging:reply(formatServerMemberList(l._onlineMembers(), _team, l._queue[i].isDebugging.author.fullname))
 					else
 						object.shadestest:send(formatReceiveText(l._onlineMembers()))
 					end
@@ -1650,12 +1654,17 @@ tfm:on("staffList", protect(function(list)
 		embed = {
 			color = roleColors[(isMod and "Moderator" or "Mapcrew")],
 			title = tostring(title),
-			description = list
+			description = list,
+			footer = {
+				
+			}
 		}
 	}
 
-	for channel in next, (isMod and modList or mapcrewList) do
-		disc:getChannel(channel):send(embed)
+	local listSrc = (isMod and modList or mapcrewList)
+	for i = 1, #listSrc do
+		embed.embed.footer.text = "Requested by " .. listSrc[i].author.fullname
+		listSrc[i]:reply(embed)
 	end
 
 	if isMod then
@@ -1716,7 +1725,7 @@ end))
 
 tfm:on("newGame", protect(function(map)
 	map.code = "@" .. map.code
-	if map.xml and map.xml ~= '' and xml[map.code] then
+	if map.xml and map.xml ~= '' and map.code and xml[map.code] then
 		timer.clearTimeout(xml[map.code].timer)
 
 		if #map.xml <= 23000 then
@@ -1726,9 +1735,9 @@ tfm:on("newGame", protect(function(map)
 					content = "<@" .. xml[map.code].message.author.id .. ">, the XML of the map is in the attached file.",
 					file = { map.code .. ".xml", map.xml }
 				})
-				timer.setTimeout(20000, function(m)
+				timer.setTimeout(20000, function()
 					m:delete()
-				end, m)
+				end)
 			else
 				head, body = http.request("POST", "https://xml-drawer.herokuapp.com/", { { "content-type", "application/x-www-form-urlencoded" } }, "xml=" .. encodeUrl(map.xml))
 
@@ -1761,7 +1770,7 @@ tfm:on("newGame", protect(function(map)
 							fields = {
 								[1] = {
 								name = "Head code",
-										value = tostring(head and head.code),
+									value = tostring(head and head.code),
 									inline = true
 								},
 								[2] = {
