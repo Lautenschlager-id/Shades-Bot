@@ -1263,11 +1263,16 @@ disc:on("messageCreate", protect(function(message)
 
 	if not isMember then return end
 
-	if not string.find(message.content, "^,") then return end
+	local content = message.content
+	if not string.find(content, "^,") then return end
+	if message.attachment and message.attachment.url then
+		content = content .. " " .. message.attachment.url
+	end
 
 	local cutSlice
 	if (channel.whisper == message.channel.id) then -- on whisper
-		local target, content = string.match(message.content, "^,(.-) +(.+)")
+		local target, msgContent = string.match(content, "^,(.-) +(.+)")
+
 		if target == 'r' then
 			if not lastUserReply then
 				message:reply({
@@ -1284,16 +1289,16 @@ disc:on("messageCreate", protect(function(message)
 			target = string.toNickname(target)
 		end
 
-		cutSlice = tfm:sendWhisper(target, formatSendText(content), helper[message.author.id])
+		cutSlice = tfm:sendWhisper(target, formatSendText(msgContent), helper[message.author.id])
 	else
 		if message.channel.id == channel.shadestest then
 			-- Whisper comes first because of ',help'
-			local executed = executeCommand(false, message.content, channel(message.channel.id), helper[message.author.id], true)
-			executed = executed or executeCommand(true, message.content, channel(message.channel.id), helper[message.author.id])
+			local executed = executeCommand(false, content, channel(message.channel.id), helper[message.author.id], true)
+			executed = executed or executeCommand(true, content, channel(message.channel.id), helper[message.author.id])
 			if executed then return end
 		end
 
-		cutSlice = tfm:sendChatMessage(channel(message.channel.id), formatSendText(string.sub(message.content, 2)), helper[message.author.id])
+		cutSlice = tfm:sendChatMessage(channel(message.channel.id), formatSendText(string.sub(content, 2)), helper[message.author.id])
 	end
 	if cutSlice then
 		message:reply({
