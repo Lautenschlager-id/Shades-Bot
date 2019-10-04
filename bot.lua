@@ -5,12 +5,11 @@ local WHISPER_MSG_LIM = 3
 local ANTI_SPAM_TIME = 8
 local DATA = { }
 do
-	local counter, account = 0, io.open("acc", 'r')
-	repeat
+	local counter = 0
+	for line in io.lines("acc") do
 		counter = counter + 1
-		DATA[counter] = account:read("*l")
-	until not DATA[counter]
-	account:close()
+		DATA[counter] = line
+	end
 end
 
 -- Deps
@@ -28,7 +27,7 @@ local disc = discordia.Client({
 })
 disc._options.routeDelay = 0
 local tfm = transfromage.client:new()
-tfm._process_xml = true
+tfm:processXml()
 
 -- Init methods
 string.trim = function(str)
@@ -981,7 +980,7 @@ do
 						ranking[counter] = { }
 					end
 				end
-				ranking = table.concat(ranking, '[', 1, 100)
+				ranking = os.time() .. table.concat(ranking, '[', 1, 100)
 
 				-- player]values[player2]values
 				tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(666):writeUTF(ranking)) -- Calls eventTextAreaCallback
@@ -1099,6 +1098,67 @@ do
 				tfm:requestBlackList()
 			end
 		},
+		["host"] = {
+			owner = true,
+			h = "Hosts #bolodefchoco's source on Transformice",
+			f = function(message)
+				local try, head, body = 0
+				repeat
+					try = try + 1
+					head, body = http.request("GET", "https://raw.githubusercontent.com/a801-luadev/bolodefchoco/master/module.lua")
+				until head.code == 200 or try > 3
+
+				if head.code ~= 200 then
+					return message:reply("#bolodefchoco: Failed to retrieve data :(")
+				end
+				local success, syntaxErr = load(body)
+				if not success then
+					return message:reply("#bolodefchoco: " .. tostring(syntaxErr))
+				end
+
+				xpcall(function(message)
+					local updater = transfromage.client:new()
+
+					updater:on("ready", protect(function()
+						message:reply("#bolodefchoco: Connecting...")
+						updater:connect(DATA[6], DATA[7])
+					end))
+
+					updater:on("connectionFailed", protect(function()
+						message:reply("#bolodefchoco: Trying to connect...")
+						updater:start(DATA[3], DATA[4])
+					end))
+
+					local triggered = false
+					updater:on("connection", protect(function()
+						message:reply("#bolodefchoco: Connected. Loading module")
+						updater:loadLua(body)
+
+						timer.setTimeout(5000, function()
+							if not triggered then
+								updater:emit("lua", "Lua script loaded")
+							end
+						end)
+					end))
+
+					updater:on("lua", function(log)
+						triggered = true
+						message:reply(log)
+						if string.find(log, "Lua script loaded") then
+							message:reply("#bolodefchoco: Hosting module")
+							updater:sendCommand(DATA[8])
+						end
+						timer.setTimeout(5000, function()
+							updater:disconnect()
+						end)
+					end)
+
+					updater:emit("connectionFailed")
+				end, function(err)
+					message:reply("#bolodefchoco [critical]: " .. tostring(err))
+				end, message)
+			end
+		}
 	}
 end
 
@@ -1364,8 +1424,6 @@ end))
 
 tfm:once("connection", protect(function()
 	DATA[2] = nil
-	DATA[3] = nil
-	DATA[4] = nil
 
 	print("Joining Tribe House")
 	tfm:joinTribeHouse()
@@ -1855,7 +1913,7 @@ ENV = setmetatable({
 	disc = disc,
 	tfm = tfm,
 	object = object,
-	channel = channel,
+	channels = channel,
 	settingchannel = settingchannel,
 	miscChannel = miscChannel,
 	categoryId = categoryId,
