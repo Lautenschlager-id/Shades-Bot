@@ -774,7 +774,7 @@ do
 				end
 
 				local answer
-				local head, body = http.request("GET", "https://club-mice.com/transformice/mouse/" .. (string.gsub(parameters, '#', "%%23", 1)))
+				local head, body = http.request("GET", "https://cheese.formice.com/transformice/mouse/" .. (string.gsub(parameters, '#', "%%23", 1)))
 				if head.code == 200 then
 					body = string.match(body, "<b>Position</b>: (.-)<")
 					if body then
@@ -964,7 +964,7 @@ do
 				local msg = message:reply("Saving leaderboard")
 
 				-- Updates the module #bolodefchoco.ranking
-				local head, body = http.request("GET", "https://club-mice.com/transformice/ranking/mice/?p=1")
+				local head, body = http.request("GET", "https://cheese.formice.com/transformice/ranking/mice/?p=1")
 
 				local ranking, counter, semicounter = { { } }, 1, 0
 				for value in string.gmatch(body, "<td>(.-)</td>") do
@@ -1100,38 +1100,48 @@ do
 		},
 		["host"] = {
 			owner = true,
-			h = "Hosts #bolodefchoco's source on Transformice",
-			f = function(message)
+			h = "Hosts a module on Transformice. [#name github/rawsrc]",
+			f = function(message, parameters)
+				if not parameters then
+					toDelete[message.id] = message:reply("Invalid syntax.")
+					return
+				end
+				local module, source = string.match(parameters, "^#(%l+)[\n ]+(https://raw%.githubusercontent.+)$")
+				if not module then
+					toDelete[message.id] = message:reply("Invalid syntax.")
+					return
+				end
+
 				local try, head, body = 0
 				repeat
 					try = try + 1
-					head, body = http.request("GET", "https://raw.githubusercontent.com/a801-luadev/bolodefchoco/master/module.lua")
+					head, body = http.request("GET", source)
 				until head.code == 200 or try > 3
 
 				if head.code ~= 200 then
-					return message:reply("#bolodefchoco: Failed to retrieve data :(")
+					return message:reply("#" .. module .. ": Failed to retrieve data :(")
 				end
 				local success, syntaxErr = load(body)
 				if not success then
-					return message:reply("#bolodefchoco: " .. tostring(syntaxErr))
+					return message:reply("#" .. module .. ": " .. tostring(syntaxErr))
 				end
 
 				xpcall(function(message)
 					local updater = transfromage.client:new()
 
 					updater:on("ready", protect(function()
-						message:reply("#bolodefchoco: Connecting...")
-						updater:connect(DATA[6], DATA[7])
+						message:reply("#" .. module .. ": Connecting...")
+						updater:connect(DATA[6], DATA[7], "*#" .. module)
 					end))
 
 					updater:on("connectionFailed", protect(function()
-						message:reply("#bolodefchoco: Trying to connect...")
+						message:reply("#" .. module .. ": Trying to connect...")
 						updater:start(DATA[3], DATA[4])
 					end))
 
 					local triggered = false
 					updater:on("connection", protect(function()
-						message:reply("#bolodefchoco: Connected. Loading module")
+						message:reply("#" .. module .. ": Connected. Loading module")
 						updater:loadLua(body)
 
 						timer.setTimeout(5000, function()
@@ -1143,10 +1153,10 @@ do
 
 					updater:on("lua", function(log)
 						triggered = true
-						message:reply(log)
+						message:reply("#" .. module .. ": " .. log)
 						if string.find(log, "Lua script loaded") then
-							message:reply("#bolodefchoco: Hosting module")
-							updater:sendCommand(DATA[8])
+							message:reply("#" .. module .. ": Hosting module")
+							updater:sendCommand(DATA[8] .. module)
 						end
 						timer.setTimeout(5000, function()
 							updater:disconnect()
@@ -1155,7 +1165,7 @@ do
 
 					updater:emit("connectionFailed")
 				end, function(err)
-					message:reply("#bolodefchoco [critical]: " .. tostring(err))
+					message:reply("#" .. module .. " [critical]: " .. tostring(err))
 				end, message)
 			end
 		}
