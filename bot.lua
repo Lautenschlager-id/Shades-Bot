@@ -180,7 +180,9 @@ local protect = function(f)
 					timestamp = discordia.Date():toISO()
 				}
 			})
+			return false
 		end
+		return true
 	end
 end
 
@@ -959,32 +961,65 @@ do
 		},
 		["rank"] = {
 			auth = "585148219395276801",
-			h = "Updates the database of #bolodefchoco0ranking.",
+			h = "Updates the database of `#bolodefchoco0ranking` and `#bolodefchoco0triberanking`.",
 			f = function(message)
-				local msg = message:reply("Saving leaderboard")
+				local msg = message:reply("Saving leaderboards")
 
 				-- Updates the module #bolodefchoco.ranking
-				local head, body = http.request("GET", "https://cheese.formice.com/transformice/ranking/mice/?p=1")
+				if not protect(function(msg)
+					local head, body = http.request("GET", "https://cheese.formice.com/transformice/ranking/mice/?p=1")
 
-				local ranking, counter, semicounter = { { } }, 1, 0
-				for value in string.gmatch(body, "<td>(.-)</td>") do
-					semicounter = semicounter + 1
+					local ranking, counter, semicounter = { { } }, 1, 0
+					for value in string.gmatch(body, "<td>(.-)</td>") do
+						semicounter = semicounter + 1
 
-					ranking[counter][semicounter] = string.gsub(string.gsub(string.gsub(value, " *<.->", ''), "%(.-%)", ''), ',', '')
+						ranking[counter][semicounter] = string.gsub(string.gsub(string.gsub(value, " *<.->", ''), "%(.-%)", ''), ',', '')
 
-					if semicounter == 7 + 1 then
-						ranking[counter] = table.concat(ranking[counter], ']', 2)
+						if semicounter == 8 then
+							ranking[counter] = table.concat(ranking[counter], ']', 2)
 
-						semicounter = 0
-						counter = counter + 1
-						ranking[counter] = { }
+							semicounter = 0
+							counter = counter + 1
+							ranking[counter] = { }
+						end
 					end
-				end
-				ranking = os.time() .. table.concat(ranking, '[', 1, 100)
+					ranking = os.time() .. table.concat(ranking, '[', 1, 100)
 
-				-- player]values[player2]values
-				tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(666):writeUTF(ranking)) -- Calls eventTextAreaCallback
-				msg:setContent("Leaderboard updated!")
+					-- player]values[player2]values
+					tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(666):writeUTF(ranking)) -- Calls eventTextAreaCallback
+
+					msg:reply("#ranking's leaderboard updated!")
+				end)(msg) then
+					msg:reply("Failed to update '#ranking'")
+				end
+
+				-- Updates the module #bolodefchoco.ranking
+				if not protect(function(msg)
+					local head, body = http.request("GET", "https://cheese.formice.com/transformice/ranking/tribes/?p=1")
+
+					local ranking, counter, semicounter = { { } }, 1, 0
+					for value in string.gmatch(body, "<td>(.-)</td>") do
+						semicounter = semicounter + 1
+
+						ranking[counter][semicounter] = string.gsub(string.gsub(string.gsub(value, " *<.->", ''), ',', ''), "&#(%d+);", string.char)
+
+						if semicounter == 7 then
+							ranking[counter] = table.concat(ranking[counter], ']', 2)
+
+							semicounter = 0
+							counter = counter + 1
+							ranking[counter] = { }
+						end
+					end
+					ranking = os.time() .. table.concat(ranking, '[', 1, 100)
+
+					-- player]values[player2]values
+					tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(6969):writeUTF(ranking)) -- Calls eventTextAreaCallback
+
+					msg:reply("#triberanking's leaderboard updated!")
+				end)(msg) then
+					msg:reply("Failed to update '#triberanking'")
+				end
 			end
 		},
 		["mem"] = {
@@ -1126,7 +1161,7 @@ do
 					return message:reply("#" .. module .. ": " .. tostring(syntaxErr))
 				end
 
-				xpcall(function(message)
+				protect(function(message)
 					local updater = transfromage.client:new()
 
 					updater:on("ready", protect(function()
@@ -1164,9 +1199,7 @@ do
 					end)
 
 					updater:emit("connectionFailed")
-				end, function(err)
-					message:reply("#" .. module .. " [critical]: " .. tostring(err))
-				end, message)
+				end)(message)
 			end
 		}
 	}
