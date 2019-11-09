@@ -565,9 +565,48 @@ do
 	end
 end
 
+local serverCommand
+local hostRanking = protect(function(data, pages, indexes, msg)
+	local head, body
+	local ranking, counter, semicounter = { { } }, 1, 0
+
+	for i = 1, pages do
+		head, body = http.request("GET", "https://cheese.formice.com/transformice/ranking/" .. data.uri .. "/?p=" .. i)
+
+		for value in string.gmatch(body, "<td>(.-)</td>") do
+			semicounter = semicounter + 1
+
+			ranking[counter][semicounter] = string.gsub(string.gsub(string.gsub(value, " *<.->", ''), ',', ''), "&#(%d+);", string.char)
+
+			if semicounter == indexes then
+				ranking[counter] = table.concat(ranking[counter], '\001', 2)
+
+				semicounter = 0
+				counter = counter + 1
+				ranking[counter] = { }
+			end
+		end
+	end
+
+	ranking = os.time() .. table.concat(ranking, '\002', 1, pages * 100)
+
+	local len, reply = #ranking
+	if len > 30000 then
+		reply = msg:reply("Cannot save '#" .. data.name .. "' because the space has been exceeded.")
+	else
+		-- player]values[player2]values
+		tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(data.id):writeUTF(ranking)) -- Calls eventTextAreaCallback
+
+		reply = msg:reply("'#" .. data.name .. "' leaderboard updated!")
+	end
+	reply:setContent(reply.content .. " (" .. len .. "/30000)")
+	
+	serverCommand["bolo"](msg) -- Bypass the 1 min limit
+end)
+
 -- Commands
 local chatHelpSource, whisperHelpSource, memberHelpSource
-local commandWrapper, chatCommand, whisperCommand, serverCommand
+local commandWrapper, chatCommand, whisperCommand--, serverCommand
 do
 	local help = function(src, param, level, language, prefix)
 		language = language or "en"
@@ -962,64 +1001,29 @@ do
 		["rank"] = {
 			auth = "585148219395276801",
 			h = "Updates the database of `#bolodefchoco0ranking` and `#bolodefchoco0triberanking`.",
-			f = function(message)
+			f = function(message, parameters)
+				parameters = tonumber(parameters) or 5
+
 				local msg = message:reply("Saving leaderboards")
-
 				-- Updates the module #bolodefchoco.ranking
-				if not protect(function(msg)
-					local head, body = http.request("GET", "https://cheese.formice.com/transformice/ranking/mice/?p=1")
-
-					local ranking, counter, semicounter = { { } }, 1, 0
-					for value in string.gmatch(body, "<td>(.-)</td>") do
-						semicounter = semicounter + 1
-
-						ranking[counter][semicounter] = string.gsub(string.gsub(string.gsub(value, " *<.->", ''), "%(.-%)", ''), ',', '')
-
-						if semicounter == 8 then
-							ranking[counter] = table.concat(ranking[counter], ']', 2)
-
-							semicounter = 0
-							counter = counter + 1
-							ranking[counter] = { }
-						end
-					end
-					ranking = os.time() .. table.concat(ranking, '[', 1, 100)
-
-					-- player]values[player2]values
-					tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(666):writeUTF(ranking)) -- Calls eventTextAreaCallback
-
-					msg:reply("#ranking's leaderboard updated!")
-				end)(msg) then
+				if not hostRanking({
+					uri = "mice",
+					name = "ranking",
+					id = 666
+				}, parameters, 8, msg) then
 					msg:reply("Failed to update '#ranking'")
 				end
 
 				-- Updates the module #bolodefchoco.ranking
-				if not protect(function(msg)
-					local head, body = http.request("GET", "https://cheese.formice.com/transformice/ranking/tribes/?p=1")
-
-					local ranking, counter, semicounter = { { } }, 1, 0
-					for value in string.gmatch(body, "<td>(.-)</td>") do
-						semicounter = semicounter + 1
-
-						ranking[counter][semicounter] = string.gsub(string.gsub(string.gsub(value, " *<.->", ''), ',', ''), "&#(%d+);", string.char)
-
-						if semicounter == 7 then
-							ranking[counter] = table.concat(ranking[counter], ']', 2)
-
-							semicounter = 0
-							counter = counter + 1
-							ranking[counter] = { }
-						end
+				timer.setTimeout(5000, coroutine.wrap(function(msg)
+					if not hostRanking({
+						uri = "tribes",
+						name = "triberanking",
+						id = 6969
+					}, parameters, 7, msg) then
+						msg:reply("Failed to update '#triberanking'")
 					end
-					ranking = os.time() .. table.concat(ranking, '[', 1, 100)
-
-					-- player]values[player2]values
-					tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(6969):writeUTF(ranking)) -- Calls eventTextAreaCallback
-
-					msg:reply("#triberanking's leaderboard updated!")
-				end)(msg) then
-					msg:reply("Failed to update '#triberanking'")
-				end
+				end), msg)
 			end
 		},
 		["mem"] = {
@@ -1961,6 +1965,7 @@ ENV = setmetatable({
 	miscChannel = miscChannel,
 	categoryId = categoryId,
 	helper = helper,
+	hostRanking = hostRanking,
 	isConnected = isConnected,
 	isWorking = isWorking,
 	dressroom = dressroom,
