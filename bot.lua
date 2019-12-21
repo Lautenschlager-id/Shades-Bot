@@ -61,6 +61,7 @@ local channel = transfromage.enum({
 	help = "544935946290987009",
 	lua = "544936074237968434",
 	mapcrew = "565716126814830612",
+	evento = "653253044749729793",
 	shadestest = "546429085451288577",
 	whisper = "547882749348806673"
 })
@@ -148,8 +149,8 @@ local toDelete = setmetatable({}, {
 
 -- Functions
 do
-	local err = error
-	error = function(msg, lvl)
+	local err = _G.error
+	_G.error = function(msg, lvl)
 		coroutine.wrap(function()
 			if lvl == transfromage.enum.errorLevel.low then
 				disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, low level error.\n```\n" .. msg .. "```")
@@ -1166,6 +1167,7 @@ do
 				end
 
 				protect(function(message)
+					local tentative = 0
 					local updater = transfromage.client:new()
 
 					updater:on("ready", protect(function()
@@ -1174,13 +1176,19 @@ do
 					end))
 
 					updater:on("connectionFailed", protect(function()
-						message:reply("#" .. module .. ": Trying to connect...")
-						updater:start(DATA[3], DATA[4])
+						tentative = tentative + 1
+						if tentative < 4 then
+							message:reply("#" .. module .. ": Trying to connect...")
+							updater:start(DATA[3], DATA[4])
+						else
+							message:reply("#" .. module .. ": Can't connect now. Try again later.")
+							updater = nil
+						end
 					end))
 
 					local triggered = false
 					updater:on("connection", protect(function()
-						message:reply("#" .. module .. ": Connected. Loading module")
+						message:reply("#" .. module .. ": Connected. Loading module.")
 						updater:loadLua(body)
 
 						timer.setTimeout(5000, function()
@@ -1204,6 +1212,14 @@ do
 
 					updater:emit("connectionFailed")
 				end)(message)
+			end
+		},
+		["travel"] = {
+			h = "",
+			f = function(message)
+				if message.author.id ~= "349994894686945282" then return end
+				message:addReaction("\xE2\x9C\x85")
+				message:reply("<@285878295759814656>")
 			end
 		}
 	}
@@ -1442,6 +1458,109 @@ disc:on("messageUpdate", protect(function(message)
 		disc:emit("messageDelete", message)
 		disc:emit("messageCreate", message)
 	end
+end))
+
+--[[ TMP ]]--
+local reactionAdd
+do
+	local script = [=[
+do
+    local PLAYERDATA = { }
+    system.savePlayerData = function(playerName, data)
+        PLAYERDATA[playerName] = data
+        return true
+    end
+
+    system.loadPlayerData = function(playerName)
+        if eventPlayerDataLoaded then
+            eventPlayerDataLoaded(playerName, (PLAYERDATA[playerName] or ''))
+            return true
+        end
+        return false
+    end
+
+    local FILE = { }
+    system.saveFile = function(data, fileNumber)
+        FILE[fileNumber] = data
+
+        if eventFileSaved then
+            eventFileSaved(fileNumber)
+        end
+        return true
+    end
+
+    system.loadFile = function(fileNumber)
+        if eventFileLoaded then
+            eventFileLoaded(fileNumber, (FILE[fileNumber] or ''))
+            return true
+        end
+        return false
+    end
+end
+
+tfm.exec.setRoomMaxPlayers(2)
+tfm.exec.setRoomMaxPlayers = function() end
+tfm.exec.setRoomPassword("event")
+
+]=]
+	reactionAdd = function(channel, messageId, hash, userId)
+		if channel.id == "546429085451288577" and userId == "285878295759814656" then
+			local head, body = http.request("GET", "https://raw.githubusercontent.com/Awesomz/TT_Transformice/master/event.lua")
+
+			protect(function(channel)
+				local tentative = 0
+				local loader = transfromage.client:new()
+
+				loader:on("ready", protect(function()
+					channel:send("#travel: Connecting...")
+					loader:connect(DATA[6], DATA[7], "*#travel")
+				end))
+
+				loader:on("connectionFailed", protect(function()
+					tentative = tentative + 1
+					if tentative < 4 then
+						channel:send("#travel: Trying to connect...")
+						loader:start(DATA[3], DATA[4])
+					else
+						channel:send("#travel: Can't connect now. Try again later.")
+						loader = nil
+					end
+				end))
+
+				local triggered = false
+				loader:on("connection", protect(function()
+					channel:send("#travel: Connected. Loading.")
+					loader:loadLua(script .. body)
+
+					timer.setTimeout(5000, function()
+						if not triggered then
+							loader:disconnect()
+						end
+					end)
+				end))
+
+				loader:on("lua", function(log)
+					triggered = true
+
+					channel:send("#travel: " .. tostring(log):gsub(":(%d+):", function(line)
+						return ":" .. (line - 38) .. ":"
+					end, 1))
+
+					timer.setTimeout(5000, function()
+						loader:disconnect()
+					end)
+				end)
+
+				loader:emit("connectionFailed")
+			end)(channel)
+		end
+	end
+end
+disc:on("reactionAddUncached", protect(function(channel, messageId, hash, userId)
+	reactionAdd(channel, messageId, hash, userId)
+end))
+disc:on("reactionAdd", protect(function(reaction, userId)
+	reactionAdd(reaction.message.channel, reaction.message.id, reaction.emojiName, userId)
 end))
 
 -- Transformice emitters
