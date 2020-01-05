@@ -54,6 +54,22 @@ table.keys = function(list, f)
 	return out
 end
 
+local pairsByIndexes = function(list, f)
+	local out = {}
+	for index in next, list do
+		out[#out + 1] = index
+	end
+	table.sort(out, f)
+
+	local i = 0
+	return function()
+		i = i + 1
+		if out[i] ~= nil then
+			return out[i], list[out[i]]
+		end
+    end
+end
+
 -- Data
 local object = { }
 local channel = transfromage.enum({
@@ -61,9 +77,9 @@ local channel = transfromage.enum({
 	help = "544935946290987009",
 	lua = "544936074237968434",
 	mapcrew = "565716126814830612",
-	evento = "653253044749729793",
 	shadestest = "546429085451288577",
-	whisper = "547882749348806673"
+	whisper = "547882749348806673",
+	teamTool = "663181550891958295"
 })
 local settingchannel = {
 	discussion = "544935729508253717",
@@ -130,6 +146,33 @@ translate.en = true
 translate.br = true
 translate.es = true
 
+local teamListAbbreviated = {
+	mt = "ModuleTeam",
+	fs = "FashionSquad",
+	fc = "Funcorp",
+	sent = "Sentinel",
+	sh = "ShadesHelpers",
+	st = "ShadesTranslators"
+}
+
+local specialHeaders = {
+	english = { { "Accept-Language", "en-US,en;q=0.9" } },
+	json = { { "Content-Type", "application/json" } }
+}
+
+local countryCodeConverted = {
+	AR = "SA",
+	EN = "GB",
+	HE = "IL",
+	VK = "NO"
+}
+
+local cachedTeamListDisplay = { }
+
+local teamList = { }
+local teamListHasBeenChanged = false
+local teamListFileTimer = 0
+
 local ENV
 local toDelete = setmetatable({}, {
 	__newindex = function(list, index, value)
@@ -151,14 +194,14 @@ local toDelete = setmetatable({}, {
 do
 	local err = _G.error
 	_G.error = function(msg, lvl)
-		coroutine.wrap(function()
+		coroutine.wrap(function(msg, lvl)
 			if lvl == transfromage.enum.errorLevel.low then
 				disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, low level error.\n```\n" .. msg .. "```")
 			else
 				disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, disconnected with high level error.\n```\n" .. msg .. "```")
 				err(msg, lvl)
 			end
-		end)
+		end)(msg, lvl)
 	end
 end
 local protect = function(f)
@@ -280,7 +323,7 @@ local formatSendText = function(str)
 			else
 				local user = disc:getUser(id)
 				if user then
-					return "@" .. tostring(user.fullname) 
+					return "@" .. tostring(user.fullname)
 				end
 			end
 			return "@invalid-user"
@@ -445,6 +488,25 @@ local printf = function(...)
 	return table.concat(out, "\t")
 end
 
+local getDatabase = function(fileName)
+	local _, body = http.request("GET", "http://discbotdb.000webhostapp.com/get?k=" .. DATA[9] .. "&f=" .. fileName)
+	body = (body and json.decode(body))
+
+	if not body then
+		return false, error("[Database] Failed to get data.", transfromage.enum.errorLevel.low)
+	end
+
+	return body
+end
+
+local saveDatabase = function(fileName, data)
+	data = json.encode(data)
+
+	local _, body = http.request("POST", "http://discbotdb.000webhostapp.com/set?k=" .. DATA[9] .. "&f=" .. fileName, specialHeaders.json, data)
+
+	return body == "true"
+end
+
 -- Command Functions
 do
 	local sendWhisper = tfm.sendWhisper
@@ -596,14 +658,26 @@ local hostRanking = protect(function(data, pages, indexes, msg)
 		reply = msg:reply("Cannot save '#" .. data.name .. "' because the space has been exceeded.")
 	else
 		-- player]values[player2]values
-		tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(data.id):writeUTF(ranking)) -- Calls eventTextAreaCallback
+		tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(69):writeUTF(ranking)) -- Calls eventTextAreaCallback
 
 		reply = msg:reply("'#" .. data.name .. "' leaderboard updated!")
 	end
 	reply:setContent(reply.content .. " (" .. len .. "/30000)")
-	
-	serverCommand["bolo"](msg) -- Bypass the 1 min limit
 end)
+
+local isPlayer = function(playerName)
+	local _, body = http.request("GET", "https://atelier801.com/profile?pr=" .. encodeUrl(playerName), specialHeaders.english)
+
+	return not string.find(body, "The request contains one or more invalid parameters")
+end
+
+local encodeTeamList = function()
+	return table.concat(table.map(teamList, function(list, teamName)
+		return teamName .. "{" .. table.concat(table.map(list, function(community, playerName)
+			return playerName .. ";" .. community
+		end), ';') .. "}"
+	end))
+end
 
 -- Commands
 local chatHelpSource, whisperHelpSource, memberHelpSource
@@ -816,7 +890,7 @@ do
 				end
 
 				local answer
-				local head, body = http.request("GET", "https://cheese.formice.com/transformice/mouse/" .. (string.gsub(parameters, '#', "%%23", 1)))
+				local head, body = http.request("GET", "https://cheese.formice.com/transformice/mouse/" .. encodeUrl(parameters))
 				if head.code == 200 then
 					body = string.match(body, "<b>Position</b>: (.-)<")
 					if body then
@@ -1016,7 +1090,7 @@ do
 				end
 
 				-- Updates the module #bolodefchoco.ranking
-				timer.setTimeout(5000, coroutine.wrap(function(msg)
+				timer.setTimeout(70000, coroutine.wrap(function(msg)
 					if not hostRanking({
 						uri = "tribes",
 						name = "triberanking",
@@ -1212,6 +1286,182 @@ do
 
 					updater:emit("connectionFailed")
 				end)(message)
+			end
+		},
+		["team"] = {
+			owner = false,
+			h = "",
+			f = function(message, parameters)
+				if message.channel.id ~= channel.teamTool then
+					toDelete[message.id] = message:reply("You can only use this command in the <#" .. channel.teamTool .. "> channel.")
+					return
+				end
+
+				local action = (parameters and string.match(parameters, "^(%S+)$"))
+				action = action and string.lower(action)
+
+				if action == "save" then
+					if not teamListHasBeenChanged then
+						toDelete[message.id] = message:reply("Nothing has been edited in the teams' lists.")
+						return
+					end
+
+					local time = os.time()
+					if time < teamListFileTimer then
+						toDelete[message.id] = message:reply("You can only save the teams' list once per minute. [" .. (time - teamListFileTimer) .. "].")
+						return
+					end
+
+					message:reply("Saved in database: " .. tostring(saveDatabase("teamList", teamList)))
+
+					-- team{name;commu;name;commu}
+					tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(69):writeUTF(encodeTeamList())) -- Calls eventTextAreaCallback
+
+					message:reply("Sending data to #bolodefchoco")
+
+					teamListHasBeenChanged = false
+					teamListFileTimer = os.time() + 65
+				elseif teamList[action] then -- Lists
+					if not cachedTeamListDisplay[action] then
+						local fields, fieldCounter = { { } }, 1
+
+						local totalCounter = 0
+
+						local nameCounter = 0
+						for playerName, community in pairsByIndexes(teamList[action]) do
+							nameCounter = nameCounter + 1
+
+							totalCounter = totalCounter + 1
+							fields[fieldCounter][nameCounter] = ":flag_" .. string.lower(countryCodeConverted[community] or community) .. ": " .. " " .. playerName
+
+							if nameCounter == 26 then
+								nameCounter = 0
+								fieldCounter = fieldCounter + 1
+								fields[fieldCounter] = { }
+							end
+						end
+
+						for i = 1, fieldCounter do
+							if #fields[i] == 0 then break end
+							fields[i] = {
+								name = '‌',
+								value = string.gsub(remDefaultDiscriminator(table.concat(fields[i], "\n")), "#%d+", "`%1`"),
+								inline = true
+							}
+						end
+
+						cachedTeamListDisplay[action] = { }
+						local abvAction = teamListAbbreviated[action]
+						local title = (string.gsub(abvAction, "%u", " %1") .. " [" .. totalCounter .. "]")
+
+						local counter = 0
+						for i = 1, fieldCounter, 5 do
+							counter = counter + 1
+							cachedTeamListDisplay[action][counter] = {
+								embed = {
+									color = roleColors[abvAction],
+									title = (counter == 1 and title or nil),
+									fields = table.arrayRange(fields, i, i + 5)
+								}
+							}
+						end
+					end
+
+					local messages = { }
+					for i = 1, #cachedTeamListDisplay[action] do
+						messages[i] = message:reply(cachedTeamListDisplay[action][i])
+					end
+					toDelete[message.id] = messages
+				else
+					local teamName, method, names = string.match(tostring(parameters), "^(%S+)[\n ]+(...)[\n ]+(.+)")
+					if not teamName then
+						toDelete[message.id] = message:reply("Invalid syntax. Command syntax: `[team_name] [add] [name=community] [...]` | `[team_name] [rem] [name] [...]`")
+						return
+					end
+
+					teamName = string.lower(teamName)
+					if not teamList[teamName] then
+						toDelete[message.id] = message:reply("Invalid syntax. Missing `teamName` (Should be `" .. table.concat(table.keys(teamList), "`, `") .. "`).")
+						return
+					end
+
+					method = string.lower(method)
+					local isAdd = method == "add"
+					local isRem = method == "rem"
+
+					if not (isAdd or isRem) then
+						toDelete[message.id] = message:reply("Invalid syntax. Missing `method` (Should be `add`, `rem`).")
+						return
+					end
+
+					if #names < 6 then
+						toDelete[message.id] = message:reply("Invalid syntax. Missing `names`.")
+						return
+					end
+
+					local isContinue, community = false
+					names = string.split(names, "%S+")
+
+					local validNames, counter = { }, 0
+
+					for name = 1, #names do
+						isContinue = true
+						repeat
+							if isRem then
+								name = string.toNickname(names[name], true)
+
+								if not teamList[teamName][name] then
+									toDelete[message.id] = message:reply("The player `" .. name .. "` is not in the `" .. teamName .. "` members's list.")
+									break
+								end
+
+								isContinue = false
+								teamList[teamName][name] = nil
+
+								message:reply("Player `" .. name .. "` removed from `" .. teamName .. "`.")
+							else
+								if string.sub(names[name], -3, -3) ~= '=' then
+									toDelete[message.id] = message:reply("Invalid syntax. Player names should be followed by the community, as in `Bolo#0000=BR`.")
+									break
+								end
+
+								community = string.upper(string.sub(names[name], -2))
+								name = string.toNickname(string.sub(names[name], 1, -4), true)
+
+								if not transfromage.enum.community[string.lower(community)] then
+									toDelete[message.id] = message:reply("Invalid community `" .. community .. "` for the player `" .. name .. "`.")
+									break
+								end
+
+								if teamList[teamName][name] then
+									toDelete[message.id] = message:reply("The player `" .. name .. "` already is in the `" .. teamName .. "` members's list.")
+									break
+								end
+
+								if not isPlayer(name) then
+									toDelete[message.id] = message:reply("The player `" .. name .. "` could not be found.")
+									break
+								end
+
+								isContinue = false
+								teamList[teamName][name] = community
+
+								message:reply("Player `" .. name .. "` added to `" .. teamName .. "`.")
+							end
+						until true
+
+						if not isContinue then
+							counter = counter + 1
+							validNames[counter] = name
+						end
+					end
+
+					if counter > 0 then
+						teamListHasBeenChanged = true
+						cachedTeamListDisplay[teamName] = nil
+						message:reply("**[Success]** " .. method .. " => `" .. table.concat(validNames, "`, `") .. "`")
+					end
+				end
 			end
 		}
 	}
@@ -1474,10 +1724,14 @@ tfm:on("connectionFailed", protect(function()
 end))
 
 tfm:on("disconnection", protect(function(connection)
-	error("[Connection] Disconnected from " .. connection.name .. ".", transfromage.enum.errorLevel[(connection.name == "main" and "high" or "low")])
+	if tfm._isConnected and connection.name == "main" then
+		error("[Connection] Disconnected from main.", transfromage.enum.errorLevel.high)
+	end
 end))
 
 tfm:once("connection", protect(function()
+	error("Connected to the game with port " .. transfromage.enum.setting.port[tfm.main.port], transfromage.enum.errorLevel.low)
+
 	DATA[2] = nil
 
 	print("Joining Tribe House")
@@ -1488,6 +1742,23 @@ tfm:once("connection", protect(function()
 		if chat ~= "whisper" then
 			tfm:joinChat(chat)
 		end
+	end
+
+	print("Getting team list")
+	teamList = getDatabase("teamList")
+	if not teamList then
+		local t
+		t = timer.setInterval(5000, coroutine.makef(function()
+			print("Getting team list")
+			teamList = getDatabase("teamList")
+
+			if teamList then
+				ENV.teamList = teamList
+				timer.clearInterval(t)
+			end
+		end))
+	else
+		ENV.teamList = teamList
 	end
 end))
 
@@ -1564,7 +1835,7 @@ tfm:on("profileLoaded", protect(function(data)
 					(data.role > 0 and ("**Role :** " .. string.gsub(transfromage.enum.role(data.role), "%a", string.upper, 1) .. "\n\n") or '') ..
 
 					((data.soulmate and data.soulmate ~= '') and (":revolving_hearts: **" .. data.soulmate .. "**\n") or '') ..
-					":calendar: " .. os.date("%d/%m/%Y", data.registrationDate) .. 
+					":calendar: " .. os.date("%d/%m/%Y", data.registrationDate) ..
 					((data.tribeName and data.tribeName ~= '') and ("\n<:tribe:458407729736974357> **Tribe :** " .. data.tribeName) or '') ..
 
 					"\n\n**Level " .. data.level .. "**" ..
@@ -1653,6 +1924,12 @@ end))
 
 tfm:insertPacketListener(6, 9, protect(function(self, packet, connection, C_CC) -- Chat message from #bolodefchoco.*\3Editeur
 	local text = packet:readUTF()
+
+	if string.find(text, "[shades_id]", 1, true) then
+		object.shadestest:send("<@" .. disc.owner.id .. ">\n" .. text)
+		return
+	end
+
 	local team, missing, content = string.match(text, "^(%S+) (%d) (.+)")
 	missing = tonumber(missing)
 
@@ -1774,7 +2051,7 @@ tfm:on("staffList", protect(function(list)
 			title = tostring(title),
 			description = list,
 			footer = {
-				
+
 			}
 		}
 	}
@@ -2019,7 +2296,20 @@ ENV = setmetatable({
 	commandWrapper = commandWrapper,
 	chatCommand = chatCommand,
 	whisperCommand = whisperCommand,
-	serverCommand = serverCommand
+	serverCommand = serverCommand,
+	specialHeaders = specialHeaders,
+	teamList = teamList,
+	teamListAbbreviated = teamListAbbreviated,
+	countryCodeConverted = countryCodeConverted,
+	cachedTeamListDisplay = cachedTeamListDisplay,
+	teamListHasBeenChanged = function()
+		return teamListHasBeenChanged
+	end,
+	teamListFileTimer = function()
+		return teamListFileTimer
+	end,
+	getDatabase = getDatabase,
+	saveDatabase = saveDatabase
 }, {
 	__index = _G
 })
