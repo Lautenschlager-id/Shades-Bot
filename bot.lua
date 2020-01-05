@@ -173,6 +173,14 @@ local teamList = { }
 local teamListHasBeenChanged = false
 local teamListFileTimer = 0
 
+local githubWebhook = {
+	id = "649659668913717270",
+	name = "Lautenschlager-id",
+	actionName = "github-actions[bot]",
+	embedType = "rich",
+	waitingAction = false
+}
+
 local ENV
 local toDelete = setmetatable({}, {
 	__newindex = function(list, index, value)
@@ -489,7 +497,7 @@ local printf = function(...)
 end
 
 local getDatabase = function(fileName)
-	local _, body = http.request("GET", "http://discbotdb.000webhostapp.com/get?k=" .. DATA[9] .. "&f=" .. fileName)
+	local _, body = http.request("GET", "http://discbotdb.000webhostapp.com/get?k=" .. DATA[9] .. "&e=json&f=" .. fileName)
 	body = (body and json.decode(body))
 
 	if not body then
@@ -502,7 +510,7 @@ end
 local saveDatabase = function(fileName, data)
 	data = json.encode(data)
 
-	local _, body = http.request("POST", "http://discbotdb.000webhostapp.com/set?k=" .. DATA[9] .. "&f=" .. fileName, specialHeaders.json, data)
+	local _, body = http.request("POST", "http://discbotdb.000webhostapp.com/set?k=" .. DATA[9] .. "&e=json&f=" .. fileName, specialHeaders.json, data)
 
 	return body == "true"
 end
@@ -658,11 +666,64 @@ local hostRanking = protect(function(data, pages, indexes, msg)
 		reply = msg:reply("Cannot save '#" .. data.name .. "' because the space has been exceeded.")
 	else
 		-- player]values[player2]values
-		tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(69):writeUTF(ranking)) -- Calls eventTextAreaCallback
+		tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(data.id):writeUTF(ranking)) -- Calls eventTextAreaCallback
 
 		reply = msg:reply("'#" .. data.name .. "' leaderboard updated!")
 	end
 	reply:setContent(reply.content .. " (" .. len .. "/30000)")
+end)
+
+local hostModule = protect(function(message, module, script)
+	local moduleRoom = "*#" .. module
+
+	local tentative = 0
+
+	local updater = transfromage.client:new()
+	updater:on("ready", protect(function()
+			message:reply("#" .. module .. ": Connecting...")
+			updater:connect(DATA[6], DATA[7], moduleRoom)
+	end))
+
+	updater:on("connectionFailed", protect(function()
+		tentative = tentative + 1
+		if tentative < 4 then
+			message:reply("#" .. module .. ": Trying to connect...")
+			updater:start(DATA[3], DATA[4])
+		else
+			message:reply("#" .. module .. ": Can't connect now. Try again later.")
+			updater = nil
+		end
+	end))
+
+	local triggered = false
+	updater:on("connection", protect(function()
+		message:reply("#" .. module .. ": Connected. Loading module.")
+		updater:loadLua(script)
+
+		timer.setTimeout(5000, function()
+			if not triggered then
+				updater:emit("lua", "<V>[" .. moduleRoom .. "] Lua script loaded")
+			end
+		end)
+	end))
+
+	updater:on("lua", function(log)
+		if not string.find(log, "<V>[" .. moduleRoom .. "]", 1, true) then return end
+
+		triggered = true
+		message:reply("#" .. module .. ": " .. log)
+
+		if string.find(log, "Lua script loaded") then
+			message:reply("#" .. module .. ": Hosting module")
+			updater:sendCommand(DATA[8] .. " " .. module)
+		end
+
+		timer.setTimeout(5000, function()
+			updater:disconnect()
+		end)
+	end)
+
+	updater:emit("connectionFailed")
 end)
 
 local isPlayer = function(playerName)
@@ -1077,24 +1138,28 @@ do
 			auth = "585148219395276801",
 			h = "Updates the database of `#bolodefchoco0ranking` and `#bolodefchoco0triberanking`.",
 			f = function(message, parameters)
-				parameters = tonumber(parameters) or 5
+				parameters = tonumber(parameters) or 2
 
 				local msg = message:reply("Saving leaderboards")
 				-- Updates the module #bolodefchoco.ranking
 				if not hostRanking({
 					uri = "mice",
 					name = "ranking",
-					id = 666
+					id = 4
 				}, parameters, 8, msg) then
 					msg:reply("Failed to update '#ranking'")
 				end
 
+				timer.setTimeout(8000, coroutine.wrap(function()
+					tfm:sendCommand("module bolodefchoco") -- resets to avoid the 1min limite
+				end))
+
 				-- Updates the module #bolodefchoco.ranking
-				timer.setTimeout(70000, coroutine.wrap(function(msg)
+				timer.setTimeout(12000, coroutine.wrap(function(msg)
 					if not hostRanking({
 						uri = "tribes",
 						name = "triberanking",
-						id = 6969
+						id = 5
 					}, parameters, 7, msg) then
 						msg:reply("Failed to update '#triberanking'")
 					end
@@ -1240,52 +1305,7 @@ do
 					return message:reply("#" .. module .. ": " .. tostring(syntaxErr))
 				end
 
-				protect(function(message)
-					local tentative = 0
-					local updater = transfromage.client:new()
-
-					updater:on("ready", protect(function()
-						message:reply("#" .. module .. ": Connecting...")
-						updater:connect(DATA[6], DATA[7], "*#" .. module)
-					end))
-
-					updater:on("connectionFailed", protect(function()
-						tentative = tentative + 1
-						if tentative < 4 then
-							message:reply("#" .. module .. ": Trying to connect...")
-							updater:start(DATA[3], DATA[4])
-						else
-							message:reply("#" .. module .. ": Can't connect now. Try again later.")
-							updater = nil
-						end
-					end))
-
-					local triggered = false
-					updater:on("connection", protect(function()
-						message:reply("#" .. module .. ": Connected. Loading module.")
-						updater:loadLua(body)
-
-						timer.setTimeout(5000, function()
-							if not triggered then
-								updater:emit("lua", "Lua script loaded")
-							end
-						end)
-					end))
-
-					updater:on("lua", function(log)
-						triggered = true
-						message:reply("#" .. module .. ": " .. log)
-						if string.find(log, "Lua script loaded") then
-							message:reply("#" .. module .. ": Hosting module")
-							updater:sendCommand(DATA[8] .. module)
-						end
-						timer.setTimeout(5000, function()
-							updater:disconnect()
-						end)
-					end)
-
-					updater:emit("connectionFailed")
-				end)(message)
+				hostModule(message, module, body)
 			end
 		},
 		["team"] = {
@@ -1314,10 +1334,12 @@ do
 
 					message:reply("Saved in database: " .. tostring(saveDatabase("teamList", teamList)))
 
-					-- team{name;commu;name;commu}
-					tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(69):writeUTF(encodeTeamList())) -- Calls eventTextAreaCallback
 
-					message:reply("Sending data to #bolodefchoco")
+					local teamListEncoded = encodeTeamList()
+					-- team{name;commu;name;commu}
+					tfm.bulle:send({ 29, 21 }, transfromage.byteArray:new():write32(3):writeUTF(teamListEncoded)) -- Calls eventTextAreaCallback
+
+					message:reply("Sending data to #bolodefchoco (" .. #teamListEncoded .. "/30000)")
 
 					teamListHasBeenChanged = false
 					teamListFileTimer = os.time() + 65
@@ -1446,12 +1468,17 @@ do
 								isContinue = false
 								teamList[teamName][name] = community
 
-								message:reply("Player `" .. name .. "` added to `" .. teamName .. "`.")
+								message:reply("Player `" .. name .. " [" .. community .. "]` added to `" .. teamName .. "`.")
 							end
 						until true
 
 						if not isContinue then
 							counter = counter + 1
+
+							if community then
+								name = name .. " [" .. community .. "]"
+							end
+
 							validNames[counter] = name
 						end
 					end
@@ -1593,7 +1620,40 @@ end)
 
 disc:on("messageCreate", protect(function(message)
 	if not isWorking then return end
-	if message.author.bot then return end
+	if message.author.bot then
+		if (message.author and message.embed and message.embed.author) and message.author.id == githubWebhook.id
+			and message.channel.id == channel.shadestest and message.embed.type == githubWebhook.embedType
+			and (message.embed.author.name == githubWebhook.name or message.embed.author.name == githubWebhook.actionName) then
+
+			local module = string.match(message.embed.title, "^%[(.-):")
+			if not module then return end
+
+			local isBolodefchoco = (module == "bolodefchoco")
+			local hasHost = string.find(message.embed.description, "[host]", 1, true)
+
+			if message.embed.author.name == githubWebhook.actionName then
+				if not githubWebhook.waitingAction then return end
+			elseif isBolodefchoco then -- is not action, is bolo
+				githubWebhook.waitingAction = not not (hasHost and string.find(message.embed.description, "[build]", 1, true))
+				return
+			end
+
+			if hasHost or githubWebhook.waitingAction then
+				local url = "https://raw.githubusercontent.com/a801-luadev/" .. module .. "/master/"
+				if isBolodefchoco then -- Has builds
+					url = url .. "builds/" .. os.date("%d_%m_%y") .. ".lua"
+				else
+					url = url .. "module.lua"
+				end
+
+				local parameters = "#" .. module .. " " .. url
+
+				message:reply("/host " .. parameters)
+				serverCommand["host"](message, parameters)
+			end
+		end
+		return
+	end
 
 	if message.channel.id == settingchannel.memberList.id then
 		return setHelper(message.content)
@@ -2309,7 +2369,9 @@ ENV = setmetatable({
 		return teamListFileTimer
 	end,
 	getDatabase = getDatabase,
-	saveDatabase = saveDatabase
+	saveDatabase = saveDatabase,
+	githubWebhook = githubWebhook,
+	hostModule = hostModule
 }, {
 	__index = _G
 })
