@@ -67,7 +67,7 @@ local pairsByIndexes = function(list, f)
 		if out[i] ~= nil then
 			return out[i], list[out[i]]
 		end
-    end
+	end
 end
 
 -- Data
@@ -106,6 +106,7 @@ local profile = { }
 local checkTitles = { }
 local friendRemoval
 local displayBlacklist = { }
+local checkAvailableRewards = { }
 
 local mapCategory = require("data/mapCategory")
 local roleColors = require("data/roleColors")
@@ -114,6 +115,8 @@ local titleRequirements = require("data/titleRequirements")
 
 local titleFields = { "cheeses", "firsts", "savesNormal", "savesHard", "savesDivine", "bootcamps" }
 local titleFieldsKeys = { "$cheese", "$first", "$svnormal", "$svhard", "$svdiv", "$boot" }
+
+local unavailableTitles = require("data/unavailableTitles")
 
 local translate = setmetatable({ }, {
 	__newindex = function(this, index, value)
@@ -157,7 +160,8 @@ local teamListAbbreviated = {
 
 local specialHeaders = {
 	english = { { "Accept-Language", "en-US,en;q=0.9" } },
-	json = { { "Content-Type", "application/json" } }
+	json = { { "Content-Type", "application/json" } },
+	urlencoded = { { "Content-Type", "application/x-www-form-urlencoded" } }
 }
 
 local countryCodeConverted = {
@@ -200,18 +204,18 @@ local toDelete = setmetatable({}, {
 
 -- Functions
 do
-	local err = _G.error
 	_G.error = function(msg, lvl)
 		coroutine.wrap(function(msg, lvl)
 			if lvl == transfromage.enum.errorLevel.low then
 				disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, low level error.\n```\n" .. msg .. "```")
 			else
-				disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, disconnected with high level error.\n```\n" .. msg .. "```")
-				err(msg, lvl)
+				disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, high level error.\n```\n" .. msg .. "```")
+				os.exit(p(msg, lvl))
 			end
 		end)(msg, lvl)
 	end
 end
+
 local protect = function(f)
 	return function(...)
 		local success, err = pcall(f, ...)
@@ -507,8 +511,10 @@ local getDatabase = function(fileName)
 	return body
 end
 
-local saveDatabase = function(fileName, data)
-	data = json.encode(data)
+local saveDatabase = function(fileName, data, isRaw)
+	if not isRaw then
+		data = json.encode(data)
+	end
 
 	local _, body = http.request("POST", "http://discbotdb.000webhostapp.com/set?k=" .. DATA[9] .. "&e=json&f=" .. fileName, specialHeaders.json, data)
 
@@ -600,8 +606,8 @@ local secToDate = function(s)
 	return string.format("%02dd%02dh%02dm%02ds", d, h, m, s)
 end
 
-local remDefaultDiscriminator = function(playerName)
-	return string.gsub(playerName, "#0000", '', 1)
+local remDefaultDiscriminator = function(playerName, _ignoreLimit)
+	return string.gsub(playerName, "#0000", '', (not _ignoreLimit and 1 or nil))
 end
 
 local loadXmlQueue
@@ -700,9 +706,9 @@ local hostModule = protect(function(message, module, script)
 		message:reply("#" .. module .. ": Connected. Loading module.")
 		updater:loadLua(script)
 
-		timer.setTimeout(5000, function()
+		timer.setTimeout(25000, function()
 			if not triggered then
-				updater:emit("lua", "<V>[" .. moduleRoom .. "] Lua script loaded")
+				updater:disconnect()
 			end
 		end)
 	end))
@@ -738,6 +744,66 @@ local encodeTeamList = function()
 			return playerName .. ";" .. community
 		end), ';') .. "}"
 	end))
+end
+
+local getTitle = function(titleId, gender, community, _ignoreGenderIndex)
+	gender = (_ignoreGenderIndex and gender or (gender % 2 + 1))
+
+	local title, hasGender = transfromage.translation.get(transfromage.enum.language[(community or "en")], "T_" .. titleId)
+	title = (title and (hasGender and title[gender] or title) or titleId)
+
+	return title, hasGender
+end
+
+local modTracker = { }
+do
+	modTracker.requested = false
+	modTracker.data = nil
+
+	local request = function()
+		modTracker.requested = true
+		tfm:sendCommand("mod")
+	end
+
+	modTracker.init = protect(function()
+		repeat
+			print("Getting mod tracker list")
+			modTracker.data = getDatabase("modTracker")
+		until modTracker.data
+
+		request()
+		timer.setInterval(60 * 5 * 1000, request)
+	end)
+
+	local normalize = function(data)
+		data = string.gsub(data, "\n%[.-%] ", '')
+		data = string.gsub(data, "<BV>(.-#)%d+</BV>,? ?", "%1")
+		return data
+	end
+
+	modTracker.receive = protect(function(data)
+		modTracker.requested = false
+
+		data = normalize(data)
+
+		local now = os.date("%d/%m/%Y")
+		if not modTracker.data[now] then
+			modTracker.data[now] = { data }
+		else
+			modTracker.data[now][#modTracker.data[now] + 1] = data
+		end
+
+		print("Saving mod tracker data")
+		local tentative, hasSaved = 0
+		repeat
+			tentative = tentative + 1
+			hasSaved = saveDatabase("modTracker", modTracker.data)
+		until hasSaved or tentative > 5
+
+		if tentative > 5 then
+			disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, could not save modTracker data.")
+		end
+	end)
 end
 
 -- Commands
@@ -980,6 +1046,19 @@ do
 					tfm:sendWhisper(playerName, t)
 				end
 			end
+		},
+		["rewards"] = {
+			h = "$rewards",
+			f = function(playerCommunity, isDebugging, playerName, parameters)
+				if parameters and #parameters > 2 then
+					parameters = string.toNickname(parameters, true)
+				else
+					parameters = playerName
+				end
+
+				checkAvailableRewards[parameters] = { playerName = playerName, isDebugging = isDebugging, playerCommunity = playerCommunity }
+				tfm:sendCommand("profile " .. parameters)
+			end
 		}
 	}
 	serverCommand = { -- message, param
@@ -988,14 +1067,14 @@ do
 			h = "Displays the available commands / the commands descriptions.",
 			f = function(message, parameters)
 				local isPb = (message.channel.category and message.channel.category.id ~= categoryId)
-				message:reply((string.gsub(help((isPb and serverHelpSource or memberHelpSource), parameters, (isPb and 3 or 2), "en", '/'), '\'', '`')))
+				toDelete[message.id] = message:reply((string.gsub(help((isPb and serverHelpSource or memberHelpSource), parameters, (isPb and 3 or 2), "en", '/'), '\'', '`')))
 			end
 		},
 		["who"] = {
 			h = "Displays a list of who is in the chat.",
 			f = function(message)
 				if message.channel.id == channel.whisper then
-					 message:reply(":warning: This is not a #channel, but the environment used to whisper players.")
+					toDelete[message.id] = message:reply(":warning: This is not a #channel, but the environment used to whisper players.")
 				else
 					tfm:chatWho(channel(message.channel.id))
 				end
@@ -1057,7 +1136,8 @@ do
 				if not parameters or not string.find(parameters, "^@%d%d%d") or string.find(parameters, "[^@%d]") then return end
 
 				if xml[parameters] then
-					return message:reply("<@" .. message.author.id .. ">, the map **" .. parameters .. "** already is in the queue.")
+					toDelete[message.id] = message:reply("<@" .. message.author.id .. ">, the map **" .. parameters .. "** already is in the queue.")
+					return
 				end
 
 				local len = #xml.queue + 1
@@ -1130,7 +1210,7 @@ do
 					profile[parameters] = message.channel.id
 					tfm:sendCommand("profile " .. parameters)
 				else
-					message:reply("Invalid nickname '" .. tostring(parameters) .. "'")
+					toDelete[message.id] = message:reply("Invalid nickname '" .. tostring(parameters) .. "'")
 				end
 			end
 		},
@@ -1310,7 +1390,7 @@ do
 		},
 		["team"] = {
 			owner = false,
-			h = "",
+			h = "Manages the #bolodefchoco's teams' lists.",
 			f = function(message, parameters)
 				if message.channel.id ~= channel.teamTool then
 					toDelete[message.id] = message:reply("You can only use this command in the <#" .. channel.teamTool .. "> channel.")
@@ -1321,7 +1401,7 @@ do
 				action = action and string.lower(action)
 
 				if action == "save" then
-					if not teamListHasBeenChanged then
+					if not teamListHasBeenChanged and message.author.id ~= disc.owner.id then
 						toDelete[message.id] = message:reply("Nothing has been edited in the teams' lists.")
 						return
 					end
@@ -1332,8 +1412,14 @@ do
 						return
 					end
 
-					message:reply("Saved in database: " .. tostring(saveDatabase("teamList", teamList)))
+					local hasSaved = saveDatabase("teamList", teamList)
+					message:reply("Saved in database: " .. tostring(hasSaved))
 
+					if not hasSaved then
+						teamListHasBeenChanged = true
+						message:reply("<@" .. disc.owner.id .. "> ↑")
+						return
+					end
 
 					local teamListEncoded = encodeTeamList()
 					-- team{name;commu;name;commu}
@@ -1343,57 +1429,6 @@ do
 
 					teamListHasBeenChanged = false
 					teamListFileTimer = os.time() + 65
-				elseif teamList[action] then -- Lists
-					if not cachedTeamListDisplay[action] then
-						local fields, fieldCounter = { { } }, 1
-
-						local totalCounter = 0
-
-						local nameCounter = 0
-						for playerName, community in pairsByIndexes(teamList[action]) do
-							nameCounter = nameCounter + 1
-
-							totalCounter = totalCounter + 1
-							fields[fieldCounter][nameCounter] = ":flag_" .. string.lower(countryCodeConverted[community] or community) .. ": " .. " " .. playerName
-
-							if nameCounter == 26 then
-								nameCounter = 0
-								fieldCounter = fieldCounter + 1
-								fields[fieldCounter] = { }
-							end
-						end
-
-						for i = 1, fieldCounter do
-							if #fields[i] == 0 then break end
-							fields[i] = {
-								name = '‌',
-								value = string.gsub(remDefaultDiscriminator(table.concat(fields[i], "\n")), "#%d+", "`%1`"),
-								inline = true
-							}
-						end
-
-						cachedTeamListDisplay[action] = { }
-						local abvAction = teamListAbbreviated[action]
-						local title = (string.gsub(abvAction, "%u", " %1") .. " [" .. totalCounter .. "]")
-
-						local counter = 0
-						for i = 1, fieldCounter, 5 do
-							counter = counter + 1
-							cachedTeamListDisplay[action][counter] = {
-								embed = {
-									color = roleColors[abvAction],
-									title = (counter == 1 and title or nil),
-									fields = table.arrayRange(fields, i, i + 5)
-								}
-							}
-						end
-					end
-
-					local messages = { }
-					for i = 1, #cachedTeamListDisplay[action] do
-						messages[i] = message:reply(cachedTeamListDisplay[action][i])
-					end
-					toDelete[message.id] = messages
 				else
 					local teamName, method, names = string.match(tostring(parameters), "^(%S+)[\n ]+(...)[\n ]+(.+)")
 					if not teamName then
@@ -1490,6 +1525,68 @@ do
 					end
 				end
 			end
+		},
+		["ls"] = {
+			pb = true,
+			h = "Displays all members of a specific team.",
+			f = function(message, parameters)
+				parameters = string.lower(tostring(parameters))
+				if not teamList[parameters] then
+					toDelete[message.id] = message:reply("Invalid team name. The available teams are: `" .. table.concat(table.keys(teamList), "`, `") .. "`")
+					return
+				end
+
+				if not cachedTeamListDisplay[parameters] then
+					local fields, fieldCounter = { { } }, 1
+
+					local totalCounter = 0
+
+					local nameCounter = 0
+					for playerName, community in pairsByIndexes(teamList[parameters]) do
+						nameCounter = nameCounter + 1
+
+						totalCounter = totalCounter + 1
+						fields[fieldCounter][nameCounter] = ":flag_" .. string.lower(countryCodeConverted[community] or community) .. ": " .. " " .. playerName
+
+						if nameCounter == 26 then
+							nameCounter = 0
+							fieldCounter = fieldCounter + 1
+							fields[fieldCounter] = { }
+						end
+					end
+
+					for i = 1, fieldCounter do
+						if #fields[i] == 0 then break end
+						fields[i] = {
+							name = '‌',
+							value = string.gsub(remDefaultDiscriminator(table.concat(fields[i], "\n"), true), "#%d+", "`%1`"),
+							inline = true
+						}
+					end
+
+					cachedTeamListDisplay[parameters] = { }
+					local abvAction = teamListAbbreviated[parameters]
+					local title = (string.gsub(abvAction, "%u", " %1") .. " [" .. totalCounter .. "]")
+
+					local counter = 0
+					for i = 1, fieldCounter, 6 do
+						counter = counter + 1
+						cachedTeamListDisplay[parameters][counter] = {
+							embed = {
+								color = roleColors[abvAction],
+								title = (counter == 1 and title or nil),
+								fields = table.arrayRange(fields, i, i + 5)
+							}
+						}
+					end
+				end
+
+				local messages = { }
+				for i = 1, #cachedTeamListDisplay[parameters] do
+					messages[i] = message:reply(cachedTeamListDisplay[parameters][i])
+				end
+				toDelete[message.id] = messages
+			end
 		}
 	}
 end
@@ -1580,7 +1677,11 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 			if whisperCommand[cmd] then
 				returnValue = userAntiSpam(whisperCommand[cmd], playerName, playerCommunity)
 				if not returnValue then
-					returnValue, countByByte = whisperCommand[cmd](playerCommunity, isDebugging, playerName, param)
+					if whisperCommand[cmd].maintenance then
+						returnValue = translate(playerCommunity, "$maintenance")
+					else
+						returnValue, countByByte = whisperCommand[cmd](playerCommunity, isDebugging, playerName, param)
+					end
 				end
 				if returnValue then
 					if isDebugging then
@@ -1621,10 +1722,11 @@ end)
 disc:on("messageCreate", protect(function(message)
 	if not isWorking then return end
 	if message.author.bot then
-		if (message.author and message.embed and message.embed.author) and message.author.id == githubWebhook.id
+		if (message.author and message.embed and message.embed.author and message.embed.description)
+			and message.author.id == githubWebhook.id
 			and message.channel.id == channel.shadestest and message.embed.type == githubWebhook.embedType
-			and (message.embed.author.name == githubWebhook.name or message.embed.author.name == githubWebhook.actionName) then
-
+			and (message.embed.author.name == githubWebhook.name or message.embed.author.name == githubWebhook.actionName)
+		then
 			local module = string.match(message.embed.title, "^%[(.-):")
 			if not module then return end
 
@@ -1672,11 +1774,13 @@ disc:on("messageCreate", protect(function(message)
 			if serverCommand[cmd].pb or isMember then
 				if message.author.id ~= disc.owner.id then
 					if serverCommand[cmd].owner then
-						return message:reply("<@" .. message.author.id .. ">, you must be the bot owner in order to use this command!")
+						toDelete[message.id] = message:reply("<@" .. message.author.id .. ">, you must be the bot owner in order to use this command!")
+						return
 					end
 					if serverCommand[cmd].auth and not (serverCommand[cmd].allowMember and isMember) then
 						if not message.member:hasRole(serverCommand[cmd].auth) then
-							return message:reply("<@" .. message.author.id .. ">, you must have the role <@&" .. serverCommand[cmd].auth .. "> in order to use this command!")
+							toDelete[message.id] = message:reply("<@" .. message.author.id .. ">, you must have the role <@&" .. serverCommand[cmd].auth .. "> in order to use this command!")
+							return
 						end
 					end
 				end
@@ -1700,13 +1804,14 @@ disc:on("messageCreate", protect(function(message)
 
 		if target == 'r' then
 			if not lastUserReply then
-				message:reply({
+				toDelete[message.id] = message:reply({
 					content = "<@" .. message.author.id .. ">, there's no `last_user_reply` definition yet.",
 					embed = {
 						color = 0xFFAA00,
 						description = "Use `,target message` or `,r message` (← last_user_reply)"
 					}
 				})
+				return
 			else
 				target = lastUserReply
 			end
@@ -1776,7 +1881,7 @@ tfm:on("ping", protect(function()
 	if lastServerPing then
 		timer.clearTimeout(lastServerPing)
 	end
-	lastServerPing = timer.setTimeout(22 * 1000, error, "[Ping] Lost connection.", transfromage.enum.errorLevel.high)
+	lastServerPing = timer.setTimeout(25 * 1000, error, "[Ping] Lost connection.", transfromage.enum.errorLevel.high)
 end))
 
 tfm:on("connectionFailed", protect(function()
@@ -1785,6 +1890,7 @@ end))
 
 tfm:on("disconnection", protect(function(connection)
 	if tfm._isConnected and connection.name == "main" then
+		tfm._isConnected = false
 		error("[Connection] Disconnected from main.", transfromage.enum.errorLevel.high)
 	end
 end))
@@ -1799,27 +1905,18 @@ tfm:once("connection", protect(function()
 
 	print("Opening channels")
 	for chat in pairs(channel) do
-		if chat ~= "whisper" then
+		if chat ~= "whisper" and chat ~= "teamTool" then
 			tfm:joinChat(chat)
 		end
 	end
 
-	print("Getting team list")
-	teamList = getDatabase("teamList")
-	if not teamList then
-		local t
-		t = timer.setInterval(5000, coroutine.makef(function()
-			print("Getting team list")
-			teamList = getDatabase("teamList")
+	repeat
+		print("Getting team list")
+		teamList = getDatabase("teamList")
+	until teamList
+	ENV.teamList = teamList
 
-			if teamList then
-				ENV.teamList = teamList
-				timer.clearInterval(t)
-			end
-		end))
-	else
-		ENV.teamList = teamList
-	end
+	modTracker.init()
 end))
 
 tfm:once("joinTribeHouse", protect(function()
@@ -1884,8 +1981,7 @@ tfm:on("profileLoaded", protect(function(data)
 
 		dressroom[data.playerName] = nil
 	elseif profile[data.playerName] then
-		local title, hasGender = transfromage.translation.get(transfromage.enum.language.en, "T_" .. data.titleId)
-		title = (title and (hasGender and title[(data.gender % 2 + 1)] or title) or data.titleId)
+		local title = getTitle(data.titleId, data.gender)
 
 		disc:getChannel(profile[data.playerName]):send((profile[data.playerName] == miscChannel.transfromage_tokens and ("<:wheel:456198795768889344> **" .. data.playerName .. "'s ID :** " .. data.id) or ({
 			embed = {
@@ -1932,7 +2028,7 @@ tfm:on("profileLoaded", protect(function(data)
 		data.savesNormal, data.savesHard, data.savesDivine = data.saves.normal, data.saves.hard, data.saves.divine -- comp
 
 		local out, counter = { }, 0
-		local title, hasGender, field, stars, skip
+		local title, field, stars, skip
 		for f = 1, #titleFields do
 			field = titleFields[f]
 
@@ -1952,8 +2048,7 @@ tfm:on("profileLoaded", protect(function(data)
 				local missing
 				for i = 1, #titleRequirements[field] do
 					if data[field] < titleRequirements[field][i][2] then
-						title, hasGender = transfromage.translation.get(transfromage.enum.language[commu], "T_" .. titleRequirements[field][i][1])
-						title = (title and (hasGender and title[gender] or title) or titleRequirements[field][i][1])
+						title = getTitle(titleRequirements[field][i][1], gender, commu, true)
 						missing = (titleRequirements[field][i][2] - data[field])
 
 						counter = counter + 1
@@ -1979,6 +2074,51 @@ tfm:on("profileLoaded", protect(function(data)
 		end
 
 		checkTitles[data.playerName] = nil
+	elseif checkAvailableRewards[data.playerName] then
+		-- Avoid json arrays
+		data.badges._ignore = true
+		data.orbs._ignore = true
+
+		local rewards = {
+			success = true,
+			nickname = data.playerName,
+			badges = data.badges,
+			orbs = data.orbs
+		}
+
+		local titles, counter = { }, 0
+
+		local title, hasGender
+		for t = 0, 600 do -- Cannot know how many titles there are
+			if not unavailableTitles[t] and not data.titles[t] then
+				title = getTitle(t, data.gender)
+				if title ~= t then
+					counter = counter + 1
+					titles[counter] = title
+				end
+			end
+		end
+		rewards.titles = titles
+		rewards = json.encode(rewards)
+		rewards = string.gsub(rewards, "\\", '') -- Some titles use it
+
+		local playerData
+		local code = string.match(os.tmpname(), "(%w+)$")
+
+		local saved = saveDatabase(code .. "&folder=bottmp", rewards, true)
+		if not saved then
+			playerData = translate(checkAvailableRewards[data.playerName].playerCommunity, "$norewards")
+		else
+			playerData = translate(checkAvailableRewards[data.playerName].playerCommunity, "$rewardscode", code)
+		end
+
+		if checkAvailableRewards[data.playerName].isDebugging then
+			object.shadestest:send(playerData)
+		else
+			tfm:sendWhisper(checkAvailableRewards[data.playerName].playerName, playerData)
+		end
+
+		checkAvailableRewards[data.playerName] = nil
 	end
 end))
 
@@ -2096,6 +2236,10 @@ tfm:on("staffList", protect(function(list)
 	end, 1)
 
 	if hasOnline then
+		if isMod and modTracker.requested then
+			modTracker.receive(list)
+		end
+
 		list = string.gsub(list, "<.->", '')
 
 		list = string.gsub(list, "%[..%]", function(commu)
@@ -2194,7 +2338,7 @@ tfm:on("newGame", protect(function(map)
 					m:delete()
 				end)
 			else
-				head, body = http.request("POST", "https://xml-drawer.herokuapp.com/", { { "content-type", "application/x-www-form-urlencoded" } }, "xml=" .. encodeUrl(map.xml))
+				head, body = http.request("POST", "https://xml-drawer.herokuapp.com/", specialHeaders.urlencoded, "xml=" .. encodeUrl(map.xml))
 
 				if head.code == 200 then
 					local tmp = string.match(os.tmpname(), "([^/]+)$") .. ".png" -- Match needed so it doesn't glitch 'attachment://'
@@ -2371,7 +2515,9 @@ ENV = setmetatable({
 	getDatabase = getDatabase,
 	saveDatabase = saveDatabase,
 	githubWebhook = githubWebhook,
-	hostModule = hostModule
+	hostModule = hostModule,
+	unavailableTitles = unavailableTitles,
+	modTracker = modTracker
 }, {
 	__index = _G
 })
