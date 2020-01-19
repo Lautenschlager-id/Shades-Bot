@@ -110,6 +110,7 @@ local checkAvailableRewards = { }
 
 local mapCategory = require("data/mapCategory")
 local roleColors = require("data/roleColors")
+local countryFlags = require("data/countryFlags")
 
 local titleRequirements = require("data/titleRequirements")
 
@@ -207,9 +208,15 @@ do
 	_G.error = function(msg, lvl)
 		coroutine.wrap(function(msg, lvl)
 			if lvl == transfromage.enum.errorLevel.low then
-				disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, low level error.\n```\n" .. msg .. "```")
+				if disc then
+					disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, low level error.\n```\n" .. msg .. "```")
+				else
+					p(msg, lvl)
+				end
 			else
-				disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, high level error.\n```\n" .. msg .. "```")
+				if disc then
+					disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, high level error.\n```\n" .. msg .. "```")
+				end
 				os.exit(p(msg, lvl))
 			end
 		end)(msg, lvl)
@@ -1172,6 +1179,7 @@ do
 					v._queue = { }
 					v._timer = 0
 				end
+				cachedTeamListDisplay = { }
 				message:reply("Cleared cache")
 			end
 		},
@@ -1528,31 +1536,50 @@ do
 		},
 		["ls"] = {
 			pb = true,
-			h = "Displays all members of a specific team.",
+			h = "Displays all members of a specific team. You can also add a flag and/or pattern in the command for filtering.",
 			f = function(message, parameters)
-				parameters = string.lower(tostring(parameters))
-				if not teamList[parameters] then
+				parameters = string.gsub(tostring(parameters), "[\n ]........", countryFlags, 1)
+				parameters = string.lower(parameters)
+
+				local teamName = tostring(string.match(parameters, "^(%S+)"))
+				local commu = string.match(parameters, "[\n ]+:f?l?a?g?_?(%S+):[\n ]*")
+				local pattern = string.match(parameters, "[\n ]+([^:]+)[\n ]*")
+
+				if not teamList[teamName] then
 					toDelete[message.id] = message:reply("Invalid team name. The available teams are: `" .. table.concat(table.keys(teamList), "`, `") .. "`")
 					return
 				end
 
-				if not cachedTeamListDisplay[parameters] then
+				if not cachedTeamListDisplay[parameters] then -- uses commu and pattern, not the best solution but it's faster
 					local fields, fieldCounter = { { } }, 1
 
 					local totalCounter = 0
 
-					local nameCounter = 0
-					for playerName, community in pairsByIndexes(teamList[parameters]) do
-						nameCounter = nameCounter + 1
+					commu = (commu and string.lower(commu))
 
-						totalCounter = totalCounter + 1
-						fields[fieldCounter][nameCounter] = ":flag_" .. string.lower(countryCodeConverted[community] or community) .. ": " .. " " .. playerName
+					local nameCounter, formatCommu = 0
+					for playerName, community in pairsByIndexes(teamList[teamName]) do
+						formatCommu = countryCodeConverted[community]
+						formatCommu = (formatCommu and string.lower(formatCommu))
+						community = string.lower(community)
 
-						if nameCounter == 26 then
-							nameCounter = 0
-							fieldCounter = fieldCounter + 1
-							fields[fieldCounter] = { }
+						if (not commu or commu == community or commu == formatCommu) and (not pattern or string.find(string.lower(playerName), pattern)) then
+							nameCounter = nameCounter + 1
+
+							totalCounter = totalCounter + 1
+							fields[fieldCounter][nameCounter] = ":flag_" .. (formatCommu or community) .. ": " .. " " .. playerName
+
+							if nameCounter == 26 then
+								nameCounter = 0
+								fieldCounter = fieldCounter + 1
+								fields[fieldCounter] = { }
+							end
 						end
+					end
+
+					if totalCounter == 0 then
+						fieldCounter = 1
+						fields[1][1] = "N/A"
 					end
 
 					for i = 1, fieldCounter do
@@ -1565,8 +1592,10 @@ do
 					end
 
 					cachedTeamListDisplay[parameters] = { }
-					local abvAction = teamListAbbreviated[parameters]
+					local abvAction = teamListAbbreviated[teamName]
 					local title = (string.gsub(abvAction, "%u", " %1") .. " [" .. totalCounter .. "]")
+					local description = (commu or '') .. "; " .. (pattern or '')
+					description = (description ~= "; " and description or nil)
 
 					local counter = 0
 					for i = 1, fieldCounter, 6 do
@@ -1575,6 +1604,7 @@ do
 							embed = {
 								color = roleColors[abvAction],
 								title = (counter == 1 and title or nil),
+								description = (counter == 1 and description or nil),
 								fields = table.arrayRange(fields, i, i + 5)
 							}
 						}
@@ -2517,7 +2547,9 @@ ENV = setmetatable({
 	githubWebhook = githubWebhook,
 	hostModule = hostModule,
 	unavailableTitles = unavailableTitles,
-	modTracker = modTracker
+	modTracker = modTracker,
+	pairsByIndexes = pairsByIndexes,
+	countryFlags = countryFlags
 }, {
 	__index = _G
 })
