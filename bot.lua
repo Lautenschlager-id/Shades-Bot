@@ -119,33 +119,50 @@ local titleFieldsKeys = { "$cheese", "$first", "$svnormal", "$svhard", "$svdiv",
 
 local unavailableTitles = require("data/unavailableTitles")
 
-local translate = setmetatable({ }, {
-	__newindex = function(this, index, value)
-		local lang = transfromage.enum.language[index]
-
-		os.log("↑info↓[TRANSLATION]↑ Downloading the language ↑highlight↓" .. lang .. "↑")
-		transfromage.translation.download(lang, function()
-			os.log("↑success↓[TRANSLATION]↑ Downloaded the language ↑highlight↓" .. lang .. "↑")
-			-- Fix titles
-			transfromage.translation.free(lang, nil, "^T_%d+")
-			transfromage.translation.set(lang, "^T_%d+", function(titleName)
-				titleName = string.gsub(titleName, "<.->", '') -- Removes HTML
-				titleName = string.gsub(titleName, "[%*%_~]", "\\%1") -- Escape special characters
-				return titleName
-			end)
-		end)
-
-		rawset(this, index, require("data/lang/" .. index))
-	end,
-	__call = function(this, community, str, ...)
-		community = community and this[community] or this.en
-
-		str = string.gsub(str, "%$(%w+)", function(line)
-			return community[line] or this.en[line] or ("$" .. line)
-		end)
-		return string.format(str, ...)
+local translate
+do
+	local normalizeTitles = function(titleName)
+		titleName = string.gsub(titleName, "<.->", '') -- Removes HTML
+		titleName = string.gsub(titleName, "[%*%_~]", "\\%1") -- Escape special characters
+		return titleName
 	end
-})
+
+	local meta
+	meta = {
+		__newindex = function(this, index, value)
+			local lang = transfromage.enum.language[index]
+
+			local downloaded
+			os.log("↑info↓[TRANSLATION]↑ Downloading the language ↑highlight↓" .. lang .. "↑")
+			transfromage.translation.download(lang, function()
+				downloaded = true
+				os.log("↑success↓[TRANSLATION]↑ Downloaded the language ↑highlight↓" .. lang .. "↑")
+				-- Fix titles
+				transfromage.translation.free(lang, nil, "^T_%d+")
+				transfromage.translation.set(lang, "^T_%d+", normalizeTitles)
+			end)
+
+			timer.setTimeout(2500, function()
+				if not downloaded then
+					meta.__newindex(this, index, value)
+				end
+			end)
+
+			rawset(this, index, require("data/lang/" .. index))
+		end,
+		__call = function(this, community, str, ...)
+			community = community and this[community] or this.en
+
+			str = string.gsub(str, "%$(%w+)", function(line)
+				return community[line] or this.en[line] or ("$" .. line)
+			end)
+			return string.format(str, ...)
+		end
+	}
+
+	translate = setmetatable({ }, meta)
+end
+
 translate.en = true
 translate.br = true
 translate.es = true
@@ -221,6 +238,14 @@ do
 			end
 		end)(msg, lvl)
 	end
+end
+
+timer.setIntervalCoro = function(t, f, ...)
+	return timer.setInterval(t, coroutine.wrap(f), ...)
+end
+
+timer.setTimeoutCoro = function(t, f, ...)
+	return timer.setTimeout(t, coroutine.wrap(f), ...)
 end
 
 local protect = function(f)
@@ -507,9 +532,9 @@ local printf = function(...)
 	return table.concat(out, "\t")
 end
 
-local getDatabase = function(fileName)
+local getDatabase = function(fileName, isRaw)
 	local _, body = http.request("GET", "http://discbotdb.000webhostapp.com/get?k=" .. DATA[9] .. "&e=json&f=" .. fileName)
-	body = (body and json.decode(body))
+	body = (not isRaw and json.decode(body) or body)
 
 	if not body then
 		return false, error("[Database] Failed to get data.", transfromage.enum.errorLevel.low)
@@ -642,7 +667,7 @@ do
 
 	loadXmlQueue = function()
 		if #xml.queue > 0 then
-			xml[xml.queue[1]].timer = timer.setTimeout(1500, coroutine.wrap(fail), xml.queue[1])
+			xml[xml.queue[1]].timer = timer.setTimeoutCoro(1500, fail, xml.queue[1])
 
 			tfm:sendCommand("np " .. xml.queue[1])
 		end
@@ -709,13 +734,13 @@ local hostModule = protect(function(message, module, script)
 	end))
 
 	local triggered = false
-	updater:on("connection", protect(function()
+	updater:once("connection", protect(function()
 		message:reply("#" .. module .. ": Connected. Loading module.")
 		updater:loadLua(script)
 
-		timer.setTimeout(25000, function()
+		timer.setTimeout(15000, function()
 			if not triggered then
-				updater:disconnect()
+				updater:emit("lua", "<V>[" .. moduleRoom .. "] Lua script loaded")
 			end
 		end)
 	end))
@@ -731,9 +756,10 @@ local hostModule = protect(function(message, module, script)
 			updater:sendCommand(DATA[8] .. " " .. module)
 		end
 
-		timer.setTimeout(5000, function()
+		timer.setTimeout(5000, coroutine.wrap(function()
+			message:reply("#" .. module .. ": Disconnecting")
 			updater:disconnect()
-		end)
+		end))
 	end)
 
 	updater:emit("connectionFailed")
@@ -1238,12 +1264,10 @@ do
 					msg:reply("Failed to update '#ranking'")
 				end
 
-				timer.setTimeout(8000, coroutine.wrap(function()
-					tfm:sendCommand("module bolodefchoco") -- resets to avoid the 1min limite
-				end))
+				timer.setTimeoutCoro(8000, tfm.sendCommand, tfm, "module bolodefchoco") -- resets to avoid the 1min limite
 
 				-- Updates the module #bolodefchoco.ranking
-				timer.setTimeout(12000, coroutine.wrap(function(msg)
+				timer.setTimeoutCoro(12000, function(msg)
 					if not hostRanking({
 						uri = "tribes",
 						name = "triberanking",
@@ -1251,7 +1275,7 @@ do
 					}, parameters, 7, msg) then
 						msg:reply("Failed to update '#triberanking'")
 					end
-				end), msg)
+				end, msg)
 			end
 		},
 		["mem"] = {
@@ -1617,7 +1641,20 @@ do
 				end
 				toDelete[message.id] = messages
 			end
-		}
+		},
+		["fix"] = {
+			auth = "585148219395276801",
+			h = "Fixes tribe house.",
+			f = function(message, parameters)
+				serverCommand["goto"](message, "hell")
+				timer.setTimeoutCoro(4000, serverCommand["goto"].f, message, "tribe")
+				timer.setTimeoutCoro(4000 + 2500, serverCommand["clear"].f, message)
+				timer.setTimeoutCoro(4000 + 2500 + 500, serverCommand["bolo"].f, message, tribe)
+				timer.setTimeoutCoro(4000 + 2500 + 500 + 500, message.reply, message, "Checking fix:")
+				timer.setTimeoutCoro(4000 + 2500 + 500 + 500 + 2500, serverCommand["moduleteam"].f, message)
+				timer.setTimeoutCoro(4000 + 2500 + 500 + 500 + 2500 + 2500, serverCommand["clear"].f, message)
+			end
+		},
 	}
 end
 
@@ -1653,7 +1690,7 @@ end
 
 local getCommandParameters = function(message, prefix)
 	if #message < 2 then return end
-	local command, parameters = string.match(message, "^" .. (prefix or ',') .. "(%S+)[\n ]*(.*)")
+	local command, parameters = string.match(message, "^" .. (prefix or ',') .. "?(%S+)[\n ]*(.*)")
 	parameters = (parameters ~= '' and parameters or nil)
 	return (command and string.lower(command)), parameters
 end
@@ -2364,9 +2401,7 @@ tfm:on("newGame", protect(function(map)
 					content = "<@" .. xml[map.code].message.author.id .. ">, the XML of the map is in the attached file.",
 					file = { map.code .. ".xml", map.xml }
 				})
-				timer.setTimeout(20000, function()
-					m:delete()
-				end)
+				timer.setTimeout(20000, m.delete, m)
 			else
 				head, body = http.request("POST", "https://xml-drawer.herokuapp.com/", specialHeaders.urlencoded, "xml=" .. encodeUrl(map.xml))
 
@@ -2430,7 +2465,7 @@ tfm:on("newGame", protect(function(map)
 		table.remove(xml.queue, 1)
 		xml[map.code] = nil
 
-		timer.setTimeout(1000, coroutine.wrap(loadXmlQueue))
+		timer.setTimeoutCoro(1000, loadXmlQueue)
 	end
 end))
 
@@ -2549,7 +2584,8 @@ ENV = setmetatable({
 	unavailableTitles = unavailableTitles,
 	modTracker = modTracker,
 	pairsByIndexes = pairsByIndexes,
-	countryFlags = countryFlags
+	countryFlags = countryFlags,
+	isPlayer = isPlayer
 }, {
 	__index = _G
 })
