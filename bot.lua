@@ -1690,7 +1690,7 @@ end
 
 local getCommandParameters = function(message, prefix)
 	if #message < 2 then return end
-	local command, parameters = string.match(message, "^" .. (prefix or ',') .. "?(%S+)[\n ]*(.*)")
+	local command, parameters = string.match(message, "^" .. (prefix or ",?") .. "(%S+)[\n ]*(.*)")
 	parameters = (parameters ~= '' and parameters or nil)
 	return (command and string.lower(command)), parameters
 end
