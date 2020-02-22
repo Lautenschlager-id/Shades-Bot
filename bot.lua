@@ -1948,7 +1948,7 @@ tfm:on("ping", protect(function()
 	if lastServerPing then
 		timer.clearTimeout(lastServerPing)
 	end
-	lastServerPing = timer.setTimeout(25 * 1000, error, "[Ping] Lost connection.", transfromage.enum.errorLevel.high)
+	lastServerPing = timer.setTimeout(35 * 1000, error, "[Ping] Lost connection.", transfromage.enum.errorLevel.high)
 end))
 
 tfm:on("connectionFailed", protect(function()
