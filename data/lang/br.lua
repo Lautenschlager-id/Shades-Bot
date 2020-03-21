@@ -18,6 +18,8 @@ return {
 	title = "Checa os próximos títulos que você ou alguém está próximo de desbloquear. Aceita um nickname como parâmetro.",
 	hrank = "Mostra a posição de um jogador no ranking do Club-Mice. Aceita um nickname como parâmetro.",
 	inv = "Envia o link de convite para entrar no servidor do discord 'Fifty Shades of Lua'.",
+	rewards = "Gera um código para ser usado em [fiftysol.github.io/rewards], onde você pode ver todas as recompensas que um jogador ainda pode obter no jogo. Aceita um nickname como parâmetro.",
+	mapcrew = "Mostra os Mapcrew online e suas respectivas categorias de avaliação.",
 	doc = "Documentação Lua: %s",
 	app = "Aplique para '%s': %s",
 	noapp = "A equipe pedida não foi encontrada. :(",
@@ -26,9 +28,14 @@ return {
 	about = "Sou um bot do servidor '%s' ( %s ), mantido por %s. Shades Helpers é um grupo com a intenção de ajudar todo mundo, especialmente sobre módulos, lua e coisas técnicas.",
 	nohelper = "Não há Shades Helpers online no Discord. :(",
 	onhelper = "Shades Helpers Online no Discord: %s",
-	dmake = "Para fazer um bot no Transformice será necessário: - uma de nossas APIs, disponível em Lua e Python; - um token para a API se conectar ao Transformice; Você pode conseguir isso tudo em nosso server: %s",
+	dmake = "Para fazer um bot no Transformice será necessário: - nossa API, disponível em Lua e Python; - um token para a API se conectar ao Transformice; Você pode conseguir isso tudo em nosso server: %s",
 	rank = "Posição de %s no ranking: %s",
 	norank = "Não foi possível obter a posição de %s.",
+	norewards = "Não foi possível gerar o código.",
+	--rewardscode = "Use o seguinte código em [fiftysol.github.io/rewards]: %s",
+	rewardscode = "Use o seguinte código: %s",
+	notmapcrew = "Você deve ser um Mapcrew para usar este comando.",
+	nomapcrew = "Não há membros da Map Crew online. :(",
 	outfit = "Visual de %s: %s",
 	onteam = "Membros online da%s: %s",
 	noteam = "Não há membros online da%s.",
@@ -41,5 +48,6 @@ return {
 	svnormal = "save%s no modo normal",
 	svhard = "save%s no modo difícil",
 	svdiv = "save%s no modo divino",
-	boot = "bootcamp%s"
+	boot = "bootcamp%s",
+	maintenance = "Este comando está em manutenção."
 }

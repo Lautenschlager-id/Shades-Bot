@@ -5,5 +5,6 @@ return {
 	Sentinel = 0x2ECF73,
 	Moderator = 0xBABD2F,
 	Mapcrew = 0x2F7FCC,
-	ShadesHelpers = 0xF3D165
+	ShadesHelpers = 0xF3D165,
+	ShadesTranslators = 0x1ABC9C
 }

@@ -19,6 +19,8 @@ return {
 	title = "Checks the next titles you or someone is about to unlock. Accepts a nickname as parameter.",
 	hrank = "Displays the position of a player in Club-Mice's leaderboard. Accepts a nickname as parameter.",
 	inv = "Sends the invitation link to join the 'Fifty Shades of Lua' discord server.",
+	rewards = "Generates a code to be used in [fiftysol.github.io/rewards], where you can see all rewards a player still can obtain in game. Accepts a nickname as parameter.",
+	mapcrew = "Displays the list of online Mapcrew and their respective review categories.",
 	-- Data
 	doc = "Lua documentation: %s", -- URL
 	app = "Apply to '%s': %s", -- Name, URL
@@ -28,9 +30,14 @@ return {
 	about = "I'm a bot from the '%s' server ( %s ), maintained by %s. Shades Helpers is a group intended to help everyone, mostly about modules, lua, and technical stuff.", -- Name, URL, Name
 	nohelper = "No Shades Helpers online on Discord. :(",
 	onhelper = "Online Shades Helpers on Discord: %s",
-	dmake = "To make a bot in Transformice you'll need: - one of our APIs, which are available in Lua and Python; - a token for the API to connect to Transformice. You can get it all by asking in our server: %s", -- URL
+	dmake = "To make a bot in Transformice you'll need: - our API, available in Lua and Python; - a token for the API to connect to Transformice. You can get it all by asking in our server: %s", -- URL
 	rank = "%s's leaderboard position: %s",
 	norank = "Could not retrieve the position of %s.",
+	norewards = "Could not generate code.",
+	--rewardscode = "Use the following code in [fiftysol.github.io/rewards]: %s",
+	rewardscode = "Use the following code: %s",
+	notmapcrew = "You must be a Mapcrew in order to use this command.",
+	nomapcrew = "There aren't any Map Crew online. :(",
 	-- Extra
 	outfit = "%s's outfit: %s", -- Name, URL
 	onteam = "Online%s members: %s", -- Name of the team (prefixed with a space), List
@@ -45,5 +52,7 @@ return {
 	svnormal = "save%s in normal mode",
 	svhard = "save%s in hard mode",
 	svdiv = "save%s in divine mode",
-	boot = "bootcamp%s"
+	boot = "bootcamp%s",
+	-- Others
+	maintenance = "This command is under maintenance."
 }

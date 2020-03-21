@@ -54,6 +54,14 @@ table.keys = function(list, f)
 	return out
 end
 
+table.set = function(arr)
+	local set = { }
+	for i = 1, #arr do
+		set[arr[i]] = i
+	end
+	return set
+end
+
 local pairsByIndexes = function(list, f)
 	local out = {}
 	for index in next, list do
@@ -191,7 +199,9 @@ local countryCodeConverted = {
 
 local cachedTeamListDisplay = { }
 
-local teamList = { }
+local teamList, mapcrewData
+local mapcrewListByCategoryContent
+
 local teamListHasBeenChanged = false
 local teamListFileTimer = 0
 
@@ -841,27 +851,38 @@ end
 
 -- Commands
 local chatHelpSource, whisperHelpSource, memberHelpSource
-local commandWrapper, chatCommand, whisperCommand--, serverCommand
+local commandWrapper, chatCommand, whisperCommand, serverCommand
 do
-	local help = function(src, param, level, language, prefix)
+	local help = function(src, param, level, language, prefix, includePriv)
 		language = language or "en"
 		prefix = prefix or ','
 
+		local cmdList = (level == 0 and chatCommand or level == 1 and whisperCommand or (level == 2 or level == 3) and serverCommand)
 		if param then
 			param = string.lower(param)
 			if string.sub(param, 1, 1) == prefix then
 				param = string.sub(param, 2)
 			end
 
-			local cmdList = (level == 0 and chatCommand or level == 1 and whisperCommand or (level == 2 or level == 3) and serverCommand)
 			if commandWrapper[param] then
 				return "'" .. prefix .. param .. "' → " .. translate(language, tostring(commandWrapper[param]))
-			elseif cmdList[param] and (level ~= 3 or cmdList[param].pb) then
+			elseif cmdList[param] and (level ~= 3 or not cmdList[param].priv) then
 				return "'" .. prefix .. param .. "' → " .. (cmdList[param].auth and ("[<@&" .. cmdList[param].auth .. "> only] ") or cmdList[param].owner and ("[Bot owner only] ") or '') .. translate(language, tostring(cmdList[param]))
 			end
 			return translate(language, "$nocmd", prefix .. param)
 		end
-		return translate(language, "$hlist", prefix .. "help", prefix, prefix .. table.concat(src, (" | " .. prefix)))
+
+		-- Lists all commands
+		local cmds, counter = { }, 0
+		for c = 1, #src do
+			c = src[c]
+			if includePriv or not cmdList[c] or not cmdList[c].priv then -- there might be cmdWrap+other
+				counter = counter + 1
+				cmds[counter] = prefix .. c
+			end
+		end
+
+		return translate(language, "$hlist", prefix .. "help", prefix, table.concat(cmds, " | "))
 	end
 
 	local teams = {
@@ -894,27 +915,22 @@ do
 
 	-- Whisper, Server
 	local c_mt = {
-		pb = true,
 		h = "$mt",
 		f = createListCommand(" module_team")
 	}
 	local c_fs = {
-		pb = true,
 		h = "$fs",
 		f = createListCommand(" fashion_squad")
 	}
 	local c_fc = {
-		pb = true,
 		h = "$fc",
 		f = createListCommand(" funcorp")
 	}
 	local c_sent = {
-		pb = true,
 		h = "$sent",
 		f = createListCommand(" sentinel")
 	}
 	local c_sh = {
-		pb = true,
 		h = "$sh",
 		f = createListCommand(" shades_helpers")
 	}
@@ -955,23 +971,13 @@ do
 		["help"] = {
 			h = "$help",
 			f = function(playerCommunity, isDebugging, playerName, parameters)
-				local t = help(whisperHelpSource, parameters, 1, playerCommunity)
-				if isDebugging then
-					return t
-				else
-					tfm:sendWhisper(playerName, t)
-				end
+				return help(whisperHelpSource, parameters, 1, playerCommunity)
 			end
 		},
 		["about"] = {
 			h = "$info",
 			f = function(playerCommunity, isDebugging, playerName)
-				local t = translate(playerCommunity, "$about", "Fifty Shades of Lua", "discord.gg/quch83R", "Bolodefchoco#0000")
-				if isDebugging then
-					return t
-				else
-					tfm:sendWhisper(playerName, t)
-				end
+				return translate(playerCommunity, "$about", "Fifty Shades of Lua", "discord.gg/quch83R", "Bolodefchoco#0000")
 			end
 		},
 		["dischelpers"] = {
@@ -988,12 +994,8 @@ do
 					return string.match(m1, "%b()$") < string.match(m2, "%b()$")
 				end)
 
-				local t = (#online == 0 and translate(playerCommunity, "$nohelper") or translate(playerCommunity, "$onhelper", table.concat(online, ", ")))
-				if isDebugging then
-					return t, true
-				else
-					tfm:sendWhisper(playerName, t, nil, true) -- Counts by bytes because of Blank's nickname that is handled wrong by TFM.
-				end
+				-- Counts by bytes because of Blank's nickname that is handled wrong by TFM.
+				return (#online == 0 and translate(playerCommunity, "$nohelper") or translate(playerCommunity, "$onhelper", table.concat(online, ", "))), true
 			end
 		},
 		["dressroom"] = {
@@ -1017,12 +1019,7 @@ do
 			link = true,
 			h = "$make",
 			f = function(playerCommunity, isDebugging, playerName)
-				local t = translate(playerCommunity, "$dmake", "discord.gg/quch83R")
-				if isDebugging then
-					return t
-				else
-					tfm:sendWhisper(playerName, t)
-				end
+				return translate(playerCommunity, "$dmake", "discord.gg/quch83R")
 			end
 		},
 		["sentinel"] = c_sent,
@@ -1062,22 +1059,13 @@ do
 					answer = translate(playerCommunity, "$interr")
 				end
 
-				if isDebugging then
-					return answer
-				else
-					tfm:sendWhisper(playerName, answer)
-				end
+				return answer
 			end
 		},
 		["inv"] = {
 			h = "$inv",
 			f = function(playerCommunity, isDebugging, playerName)
-				local t = "'Fifty Shades of Lua' discord server link → discord.gg/quch83R"
-				if isDebugging then
-					return t
-				else
-					tfm:sendWhisper(playerName, t)
-				end
+				return "'Fifty Shades of Lua' discord server link → discord.gg/quch83R"
 			end
 		},
 		["rewards"] = {
@@ -1092,18 +1080,149 @@ do
 				checkAvailableRewards[parameters] = { playerName = playerName, isDebugging = isDebugging, playerCommunity = playerCommunity }
 				tfm:sendCommand("profile " .. parameters)
 			end
+		},
+		["mapcrew"] = {
+			h = "$mapcrew",
+			f = function(playerCommunity, isDebugging, playerName, parameters)
+				mapcrewList[#mapcrewList + 1] = { playerName = playerName, isDebugging = isDebugging, playerCommunity = playerCommunity, parameters = parameters }
+				tfm:sendCommand("mapcrew")
+			end
+		},
+		["mapcat"] = {
+			priv = true,
+			h = "Manages the map categories a Mapcrew currently reviews. [Mapcrew only]",
+			f = function(playerCommunity, isDebugging, playerName, parameters)
+				local result
+
+				if not mapcrewData[playerName] then
+					return translate(playerCommunity, "$notmapcrew")
+				end
+				if not parameters then
+					return "Syntax: \"mapcat [add/rem/set]* [nickname] [PX...]*\" | \"mapcat delmc [nickname]\". Your nickname is the default nickname argument."
+				end
+
+				parameters = string.lower(parameters)
+
+				local method = string.match(parameters, "%f[%w]add%f[%W]") or string.match(parameters, "%f[%w]rem%f[%W]") or string.match(parameters, "%f[%w]set%f[%W]") or string.match(parameters, "%f[%w]delmc%f[%W]")
+				if not method then
+					return "You must use one of the following methods: add - rem - set - delmc"
+				end
+				local isDel = (method == "delmc")
+
+				local list = string.split(parameters, "p(%d%d?)[%-,/ ]?")
+				local totalCategories = #list
+				if not isDel and totalCategories == 0 then
+					return "You must include at least one category (PX) in order to use the method " .. method
+				end
+				local set = table.set(list)
+
+				local nickname = string.match(parameters, "%+?%a[%w_][%w_][%w_]+#%d%d%d%d")
+				nickname = nickname and string.toNickname(nickname) or playerName
+
+				local isNewMapcrew = false
+				if not mapcrewData[nickname] then
+					isNewMapcrew = true
+					mapcrewData[nickname] = {
+						set = { },
+						arr = { }
+					}
+				end
+
+				local effective = false
+				if isDel then
+					if nickname == "Bolodefchoco#0000" then
+						result = "You cannot delete this member."
+					else
+						if not mapcrewData[nickname] then
+							return "'" .. nickname .. "' is not a MapCrew."
+						end
+
+						effective = true
+						mapcrewData[nickname] = nil
+
+						result = nickname .. " has been deleted from the Mapcrew list."
+					end
+				elseif method == "set" then
+					effective = true
+					mapcrewData[nickname] = { set = set, arr = list }
+
+					result = nickname .. "'s list has been updated to: P" .. table.concat(list, ", P")
+				else
+					local data = mapcrewData[nickname]
+
+					if method == "add" then
+						local initArrLen = #data.arr
+						local arrLen = initArrLen
+
+						for p = 1, totalCategories do
+							p = list[p]
+							if not data.set[p] then
+								effective = true
+
+								data.set[p] = true
+								arrLen = arrLen + 1
+								data.arr[arrLen] = p
+							end
+						end
+
+						if effective then
+							result = "Added the following categories to " .. nickname .. ": P" .. table.concat(data.arr, ", P", initArrLen + 1, arrLen)
+						end
+					elseif method == "rem" then
+						local removed, counter = { }, 0
+						local arrLen = #data.arr
+
+						for p = 1, totalCategories do
+							p = list[p]
+							if data.set[p] then
+								effective = true
+
+								data.set[p] = nil
+
+								for px = 1, arrLen do
+									if data.arr[px] == p then
+										counter = counter + 1
+										removed[counter] = table.remove(data.arr, px)
+										arrLen = arrLen - 1
+										break
+									end
+								end
+							end
+						end
+
+						if effective then
+							result = "Removed the following categories from " .. nickname .. ": P" .. table.concat(removed, ", P")
+						end
+					end
+				end
+
+				if effective then
+					if mapcrewData[nickname] then
+						table.sort(mapcrewData[nickname].arr)
+					end
+					coroutine.wrap(function()
+						object.shadestest:send("<@" .. disc.owner.id .. "> **" .. playerName .. "** → ,mapcat " .. parameters .. "\nsaved: " .. tostring(saveDatabase("mapcrew", mapcrewData)))
+					end)()
+				else
+					if isNewMapcrew then
+						mapcrewData[nickname] = nil
+					end
+				end
+
+				return result
+			end
 		}
 	}
 	serverCommand = { -- message, param
 		["help"] = {
-			pb = true,
 			h = "Displays the available commands / the commands descriptions.",
 			f = function(message, parameters)
-				local isPb = (message.channel.category and message.channel.category.id ~= categoryId)
-				toDelete[message.id] = message:reply((string.gsub(help((isPb and serverHelpSource or memberHelpSource), parameters, (isPb and 3 or 2), "en", '/'), '\'', '`')))
+				local isPriv = (message.channel.category and message.channel.category.id == categoryId)
+				toDelete[message.id] = message:reply((string.gsub(help(memberHelpSource, parameters, (isPriv and 2 or 3), "en", '/', isPriv), '\'', '`')))
 			end
 		},
 		["who"] = {
+			priv = true,
 			h = "Displays a list of who is in the chat.",
 			f = function(message)
 				if message.channel.id == channel.whisper then
@@ -1114,7 +1233,6 @@ do
 			end
 		},
 		["mod"] = {
-			pb = true,
 			h = "Displays the list of online Moderators.",
 			f = function(message)
 				modList[#modList + 1] = message
@@ -1122,14 +1240,14 @@ do
 			end
 		},
 		["mapcrew"] = {
-			pb = true,
-			h = "Displays the list of online Mapcrew.",
+			h = "Displays the list of online Mapcrew and their respective categories.",
 			f = function(message)
 				mapcrewList[#mapcrewList + 1] = message
 				tfm:sendCommand("mapcrew")
 			end
 		},
 		["time"] = {
+			priv = true,
 			h = "Displays the connection and account's time.",
 			f = function(message)
 				timeCmd[message.channel.id] = true
@@ -1137,7 +1255,6 @@ do
 			end
 		},
 		["modules"] = {
-			pb = true,
 			h = "Displays the room list of official modules",
 			f = function(message)
 				modulesCmd[message.channel.id] = true
@@ -1145,6 +1262,7 @@ do
 			end
 		},
 		["bolo"] = {
+			priv = true,
 			auth = "585148219395276801",
 			h = "Refreshes #bolodefchoco→\3*Editeur",
 			f = function(message)
@@ -1153,7 +1271,6 @@ do
 			end
 		},
 		["isonline"] = {
-			pb = true,
 			h = "Checks whether a player is online or not.",
 			f = function(message, parameters)
 				if not parameters then return end
@@ -1163,7 +1280,6 @@ do
 			end
 		},
 		["map"] = {
-			pb = true,
 			h = "Gets the image of the map specified.",
 			f = function(message, parameters, _xmlOnly)
 				if not parameters or not string.find(parameters, "^@%d%d%d") or string.find(parameters, "[^@%d]") then return end
@@ -1188,13 +1304,13 @@ do
 		["xml"] = {
 			auth = "462329326600192010",
 			allowMember = true,
-			pb = true,
 			h = "Gets the XML of the map specified.",
 			f = function(message, parameters)
 				serverCommand["map"].f(message, parameters, true)
 			end
 		},
 		["clear"] = {
+			priv = true,
 			auth = "585148219395276801",
 			h = "Clears the cache of the tables.",
 			f = function(message)
@@ -1210,6 +1326,7 @@ do
 			end
 		},
 		["invth"] = {
+			priv = true,
 			owner = true,
 			h = "Invites Bolo to the tribe house.",
 			f = function(message)
@@ -1218,6 +1335,7 @@ do
 			end
 		},
 		["goto"] = {
+			priv = true,
 			auth = "585148219395276801",
 			h = "Changes the Bot room.",
 			f = function(message, parameters)
@@ -1236,7 +1354,6 @@ do
 		["fashionsquad"] = c_fs,
 		["funcorp"] = c_fc,
 		["tfmprofile"] = {
-			pb = true,
 			h = "Displays the profile of a user in real time. (User required to be online)",
 			f = function(message, parameters)
 				if parameters and #parameters > 2 then
@@ -1249,6 +1366,7 @@ do
 			end
 		},
 		["rank"] = {
+			priv = true,
 			auth = "585148219395276801",
 			h = "Updates the database of `#bolodefchoco0ranking` and `#bolodefchoco0triberanking`.",
 			f = function(message, parameters)
@@ -1279,6 +1397,7 @@ do
 			end
 		},
 		["mem"] = {
+			priv = true,
 			owner = true,
 			h = "Checks the current memory usage.",
 			f = function(message)
@@ -1290,6 +1409,7 @@ do
 		["sentinel"] = c_sent,
 		["shelpers"] = c_sh,
 		["friend"] = {
+			priv = true,
 			auth = "585148219395276801",
 			h = "Adds a player.",
 			f = function(message, parameters)
@@ -1297,6 +1417,7 @@ do
 			end
 		},
 		["unfriend"] = {
+			priv = true,
 			auth = "585148219395276801",
 			h = "Adds a player.",
 			f = function(message, parameters)
@@ -1307,6 +1428,7 @@ do
 			end
 		},
 		["block"] = {
+			priv = true,
 			auth = "585148219395276801",
 			h = "Blacklists a player.",
 			f = function(message, parameters)
@@ -1317,6 +1439,7 @@ do
 			end
 		},
 		["unblock"] = {
+			priv = true,
 			auth = "585148219395276801",
 			h = "Whitelists a player.",
 			f = function(message, parameters)
@@ -1327,6 +1450,7 @@ do
 			end
 		},
 		["lua"] = {
+			priv = true,
 			owner = true,
 			h = "Executes lua using the bot environment.",
 			f = function(message, parameters)
@@ -1383,6 +1507,7 @@ do
 			end
 		},
 		["blacklist"] = {
+			priv = true,
 			h = "Displays the bot's blacklist.",
 			f = function(message)
 				displayBlacklist[#displayBlacklist + 1] = message
@@ -1390,6 +1515,7 @@ do
 			end
 		},
 		["host"] = {
+			priv = true,
 			owner = true,
 			h = "Hosts a module on Transformice. [#name github/rawsrc]",
 			f = function(message, parameters)
@@ -1421,6 +1547,7 @@ do
 			end
 		},
 		["team"] = {
+			priv = true,
 			owner = false,
 			h = "Manages the #bolodefchoco's teams' lists.",
 			f = function(message, parameters)
@@ -1559,7 +1686,6 @@ do
 			end
 		},
 		["ls"] = {
-			pb = true,
 			h = "Displays all members of a specific team. You can also add a flag and/or pattern in the command for filtering.",
 			f = function(message, parameters)
 				parameters = string.gsub(tostring(parameters), "[\n ]........", countryFlags, 1)
@@ -1643,6 +1769,7 @@ do
 			end
 		},
 		["fix"] = {
+			priv = true,
 			auth = "585148219395276801",
 			h = "Fixes tribe house.",
 			f = function(message, parameters)
@@ -1654,18 +1781,16 @@ do
 				timer.setTimeoutCoro(4000 + 2500 + 500 + 500 + 2500, serverCommand["moduleteam"].f, message)
 				timer.setTimeoutCoro(4000 + 2500 + 500 + 500 + 2500 + 2500, serverCommand["clear"].f, message)
 			end
-		},
+		}
 	}
 end
 
 chatHelpSource = table.fuse(table.keys(chatCommand), table.keys(commandWrapper))
 whisperHelpSource = table.fuse(table.keys(whisperCommand), table.keys(commandWrapper))
 memberHelpSource = table.keys(serverCommand)
-serverHelpSource = table.keys(serverCommand, function(k, v) return v.pb end)
 table.sort(chatHelpSource)
 table.sort(whisperHelpSource)
 table.sort(memberHelpSource)
-table.sort(serverHelpSource)
 do
 	local setMeta = function(src)
 		for k, v in next, src do
@@ -1690,9 +1815,9 @@ end
 
 local getCommandParameters = function(message, prefix)
 	if #message < 2 then return end
-	local command, parameters = string.match(message, "^" .. (prefix or ",?") .. "(%S+)[\n ]*(.*)")
+	local messagePrefix, command, parameters = string.match(message, "^(" .. (prefix or ",?") .. ")(%S+)[\n ]*(.*)")
 	parameters = (parameters ~= '' and parameters or nil)
-	return (command and string.lower(command)), parameters
+	return (command and string.lower(command)), parameters, (messagePrefix ~= '')
 end
 
 local userAntiSpam = function(src, playerName, playerCommunity)
@@ -1708,9 +1833,9 @@ end
 
 local executeCommand = function(isChatCommand, content, target, playerName, isDebugging, playerCommunity)
 	local returnValue, countByByte
-	local cmd, param = getCommandParameters(content)
+	local cmd, param, hasPrefix = getCommandParameters(content)
 
-	if param == '?' then
+	if param == '?' and hasPrefix then
 		param = cmd
 		cmd = "help"
 	end
@@ -1830,15 +1955,15 @@ disc:on("messageCreate", protect(function(message)
 
 	local isMember = channel(message.channel.id) and helper[message.author.id]
 
-	local cmd, param = getCommandParameters(message.content, '/')
+	local cmd, param, hasPrefix = getCommandParameters(message.content, '/')
 	if cmd then
-		if param == '?' then
+		if param == '?' and hasPrefix then
 			param = cmd
 			cmd = "help"
 		end
 
 		if serverCommand[cmd] then
-			if serverCommand[cmd].pb or isMember then
+			if not serverCommand[cmd].priv or isMember then
 				if message.author.id ~= disc.owner.id then
 					if serverCommand[cmd].owner then
 						toDelete[message.id] = message:reply("<@" .. message.author.id .. ">, you must be the bot owner in order to use this command!")
@@ -1982,6 +2107,20 @@ tfm:once("connection", protect(function()
 		teamList = getDatabase("teamList")
 	until teamList
 	ENV.teamList = teamList
+	repeat
+		print("Getting mapcrew list")
+		mapcrewData = getDatabase("mapcrew")
+	until mapcrewData
+
+	-- Normalize string indexes
+	for k, v in next, table.copy(mapcrewData) do
+		for m, n in next, v.set do
+			mapcrewData[k].set[m] = nil
+			mapcrewData[k].set[tonumber(m)] = n
+		end
+	end
+
+	ENV.mapcrewData = mapcrewData
 
 	modTracker.init()
 end))
@@ -2281,7 +2420,7 @@ end))
 tfm:on("staffList", protect(function(list)
 	local isMod = false
 	local hasOnline = true
-	local title
+	local title, whisperTitle
 
 	list = string.gsub(list, "%$(%S+)", function(line)
 		if line == "ModoEnLigne" then
@@ -2295,32 +2434,57 @@ tfm:on("staffList", protect(function(list)
 			title = "Online Mapcrew"
 		elseif line == "MapcrewPasEnLigne" then
 			hasOnline = false
-			title = "No Mapcrew online :("
+			whisperTitle = "$nomapcrew"
+			title = translate("en", whisperTitle)
 		else
 			title = line
 		end
 		return ''
 	end, 1)
 
+	local whisperList, discordList = (whisperTitle or title)
 	if hasOnline then
 		if isMod and modTracker.requested then
 			modTracker.receive(list)
 		end
 
-		list = string.gsub(list, "<.->", '')
+		list = string.gsub(string.sub(list, 2), "<.->", '')
 
 		list = string.gsub(list, "%[..%]", function(commu)
 			return "`" .. string.upper(commu) .. "`"
 		end)
 
-		list = string.gsub(list, "#%d+", "`%1`")
+		if not isMod then -- mapcrew
+			discordList = string.gsub(list, "%S+#%d+", function(nickname)
+				if mapcrewData[nickname] then
+					return nickname .. " [" .. table.concat(table.map(mapcrewData[nickname].arr, function(v)
+						return (mapCategory[v] and mapCategory[v][1] or ("P" .. v))
+					end), ' ') .. "]"
+				else
+					return nickname
+				end
+			end)
+
+			whisperList = string.gsub(list, "%S+#%d+", function(nickname)
+				if mapcrewData[nickname] and #mapcrewData[nickname].arr > 0 then
+					return nickname .. " [P" .. table.concat(mapcrewData[nickname].arr, "/P") .. "]"
+				else
+					return nickname
+				end
+			end)
+
+			whisperList = string.gsub(whisperList, '`', '')
+			whisperList = string.gsub(whisperList, "\n", " | ")
+		end
+
+		discordList = string.gsub((discordList or list), "#%d+", "`%1`")
 	end
 
 	local embed = {
 		embed = {
 			color = roleColors[(isMod and "Moderator" or "Mapcrew")],
 			title = tostring(title),
-			description = list,
+			description = discordList,
 			footer = {
 
 			}
@@ -2329,8 +2493,20 @@ tfm:on("staffList", protect(function(list)
 
 	local listSrc = (isMod and modList or mapcrewList)
 	for i = 1, #listSrc do
-		embed.embed.footer.text = "Requested by " .. listSrc[i].author.fullname
-		listSrc[i]:reply(embed)
+		i = listSrc[i]
+		if i.author then -- discord || mod
+			embed.embed.footer.text = "Requested by " .. i.author.fullname
+			i:reply(embed)
+		else -- whisper
+			if not hasOnline then
+				whisperList = translate(i.playerCommunity, whisperList)
+			end
+			if i.isDebugging then
+				object.shadestest:send(formatReceiveText(whisperList))
+			else
+				tfm:sendWhisper(i.playerName, whisperList)
+			end
+		end
 	end
 
 	if isMod then
@@ -2567,7 +2743,6 @@ ENV = setmetatable({
 	whisperCommand = whisperCommand,
 	serverCommand = serverCommand,
 	specialHeaders = specialHeaders,
-	teamList = teamList,
 	teamListAbbreviated = teamListAbbreviated,
 	countryCodeConverted = countryCodeConverted,
 	cachedTeamListDisplay = cachedTeamListDisplay,
