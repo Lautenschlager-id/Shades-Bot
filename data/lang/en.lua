@@ -54,5 +54,7 @@ return {
 	svdiv = "save%s in divine mode",
 	boot = "bootcamp%s",
 	-- Others
-	maintenance = "This command is under maintenance."
+	maintenance = "This command is under maintenance.",
+	tryCommand = "Did you mean: %s ?",
+	cooldown = "You have to wait a few minutes before using this command again."
 }

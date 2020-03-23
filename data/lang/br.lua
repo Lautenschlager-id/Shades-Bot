@@ -49,5 +49,7 @@ return {
 	svhard = "save%s no modo difícil",
 	svdiv = "save%s no modo divino",
 	boot = "bootcamp%s",
-	maintenance = "Este comando está em manutenção."
+	maintenance = "Este comando está em manutenção.",
+	tryCommand = "Você quis dizer: %s ?",
+	cooldown = "Você precisa aguardar alguns minutos antes de usar este comando novamente."
 }

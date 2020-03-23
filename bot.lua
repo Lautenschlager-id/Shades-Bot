@@ -34,6 +34,10 @@ string.trim = function(str)
 	return (string.gsub(tostring(str), "^ *(.*) *$", "%1"))
 end
 
+string.isSimilar = function(src, try, _perc)
+	return discordia.extensions.string.levenshtein(string.lower(src), string.lower(try)) <= math.ceil(#src * (_perc or .3))
+end
+
 table.map = function(list, f)
 	local newList, counter = { }, 0
 	for k, v in next, list do
@@ -115,6 +119,7 @@ local checkTitles = { }
 local friendRemoval
 local displayBlacklist = { }
 local checkAvailableRewards = { }
+local rewardsTimer = { }
 
 local mapCategory = require("data/mapCategory")
 local roleColors = require("data/roleColors")
@@ -1071,6 +1076,10 @@ do
 		["rewards"] = {
 			h = "$rewards",
 			f = function(playerCommunity, isDebugging, playerName, parameters)
+				if rewardsTimer[playerName] then
+					return translate(playerCommunity, "$cooldown")
+				end
+
 				if parameters and #parameters > 2 then
 					parameters = string.toNickname(parameters, true)
 				else
@@ -1831,7 +1840,7 @@ local userAntiSpam = function(src, playerName, playerCommunity)
 	end
 end
 
-local executeCommand = function(isChatCommand, content, target, playerName, isDebugging, playerCommunity)
+local executeCommand = function(isChatCommand, content, target, playerName, isDebugging, playerCommunity, checkCommandSimilarity)
 	local returnValue, countByByte
 	local cmd, param, hasPrefix = getCommandParameters(content)
 
@@ -1886,6 +1895,27 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 			end
 		end
 	end
+
+	if checkCommandSimilarity and (cmd and hasPrefix) then -- only for whisper
+		local possibilities, counter = { }, 0
+		for k = 1, #whisperHelpSource do
+			k = whisperHelpSource[k]
+			if (whisperCommand[k] and not whisperCommand[k].priv) and string.isSimilar(k, cmd) then
+				counter = counter + 1
+				possibilities[counter] = k
+			end
+		end
+
+		if counter > 0 then
+			returnValue = translate(playerCommunity, "$tryCommand", "'," .. table.concat(possibilities, "' | ',") .. "'")
+			if isDebugging then
+				tfm:sendChatMessage(target, returnValue)
+			else
+				tfm:sendWhisper(target, returnValue)
+			end
+		end
+	end
+
 	return false
 end
 
@@ -2015,7 +2045,7 @@ disc:on("messageCreate", protect(function(message)
 	else
 		if message.channel.id == channel.shadestest then
 			-- Whisper comes first because of ',help'
-			local executed = executeCommand(false, content, channel(message.channel.id), helper[message.author.id], true)
+			local executed = executeCommand(false, content, channel(message.channel.id), helper[message.author.id], true, true)
 			executed = executed or executeCommand(true, content, channel(message.channel.id), helper[message.author.id])
 			if executed then return end
 		end
@@ -2118,6 +2148,7 @@ tfm:once("connection", protect(function()
 			mapcrewData[k].set[m] = nil
 			mapcrewData[k].set[tonumber(m)] = n
 		end
+		table.sort(mapcrewData[k].arr)
 	end
 
 	ENV.mapcrewData = mapcrewData
@@ -2153,7 +2184,9 @@ tfm:on("chatMessage", protect(function(channelName, playerName, message, playerC
 
 	object[channelName]:send(content)
 
-	executeCommand(true, message, channelName, playerName, nil, playerCommunity)
+	if playerName ~= DATA[1] then
+		executeCommand(true, message, channelName, playerName, nil, playerCommunity)
+	end
 end))
 
 tfm:on("whisperMessage", protect(function(playerName, message, playerCommunity)
@@ -2172,7 +2205,9 @@ tfm:on("whisperMessage", protect(function(playerName, message, playerCommunity)
 
 	object.whisper:send(content)
 
-	executeCommand(false, message, playerName, playerName, nil, playerCommunity)
+	if not isBot then
+		executeCommand(false, message, playerName, playerName, nil, playerCommunity, true)
+	end
 end))
 
 tfm:on("profileLoaded", protect(function(data)
@@ -2281,6 +2316,9 @@ tfm:on("profileLoaded", protect(function(data)
 
 		checkTitles[data.playerName] = nil
 	elseif checkAvailableRewards[data.playerName] then
+		local srcRewards = checkAvailableRewards[data.playerName]
+		rewardsTimer[srcRewards.playerName] = os.time() + (5 * 60)
+
 		-- Avoid json arrays
 		data.badges._ignore = true
 		data.orbs._ignore = true
@@ -2313,15 +2351,15 @@ tfm:on("profileLoaded", protect(function(data)
 
 		local saved = saveDatabase(code .. "&folder=bottmp", rewards, true)
 		if not saved then
-			playerData = translate(checkAvailableRewards[data.playerName].playerCommunity, "$norewards")
+			playerData = translate(srcRewards.playerCommunity, "$norewards")
 		else
-			playerData = translate(checkAvailableRewards[data.playerName].playerCommunity, "$rewardscode", code)
+			playerData = translate(srcRewards.playerCommunity, "$rewardscode", code)
 		end
 
-		if checkAvailableRewards[data.playerName].isDebugging then
+		if srcRewards.isDebugging then
 			object.shadestest:send(playerData)
 		else
-			tfm:sendWhisper(checkAvailableRewards[data.playerName].playerName, playerData)
+			tfm:sendWhisper(srcRewards.playerName, playerData)
 		end
 
 		checkAvailableRewards[data.playerName] = nil
@@ -2465,9 +2503,12 @@ tfm:on("staffList", protect(function(list)
 				end
 			end)
 
-			whisperList = string.gsub(list, "%S+#%d+", function(nickname)
-				if mapcrewData[nickname] and #mapcrewData[nickname].arr > 0 then
-					return nickname .. " [P" .. table.concat(mapcrewData[nickname].arr, "/P") .. "]"
+			whisperList = string.gsub(list, "(%S+)(#%d+)", function(nickname, tag)
+				local fullNickname = nickname .. tag
+				nickname = (tag == "#0020" and nickname or (nickname .. tag))
+
+				if mapcrewData[fullNickname] and #mapcrewData[fullNickname].arr > 0 then
+					return nickname .. " (P" .. table.concat(mapcrewData[fullNickname].arr, "/P") .. ")"
 				else
 					return nickname
 				end
@@ -2760,7 +2801,8 @@ ENV = setmetatable({
 	modTracker = modTracker,
 	pairsByIndexes = pairsByIndexes,
 	countryFlags = countryFlags,
-	isPlayer = isPlayer
+	isPlayer = isPlayer,
+	rewardsTimer = rewardsTimer
 }, {
 	__index = _G
 })
