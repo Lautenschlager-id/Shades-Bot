@@ -26,8 +26,7 @@ local disc = discordia.Client({
 	cacheAllMembers = true
 })
 disc._options.routeDelay = 0
-local tfm = transfromage.client:new()
-tfm:processXml()
+local tfm = transfromage.client:new(nil, nil, true)
 
 -- Init methods
 string.trim = function(str)
@@ -136,7 +135,7 @@ local translate
 do
 	local normalizeTitles = function(titleName)
 		titleName = string.gsub(titleName, "<.->", '') -- Removes HTML
-		titleName = string.gsub(titleName, "[%*%_~]", "\\%1") -- Escape special characters
+		--titleName = string.gsub(titleName, "[%*%_~]", "\\%1") -- Escape special characters
 		return titleName
 	end
 
@@ -664,6 +663,7 @@ do
 		title = "Fail"
 	}
 	local fail = function(mapCode)
+		p("@@@@@@@@@@ fail mapCode")
 		failEmbed.description = "Map **" .. mapCode .. "** doesn't exist or can't be loaded."
 		xml[mapCode].message:reply({
 			content = "<@" .. xml[mapCode].message.author.id .. ">",
@@ -681,9 +681,11 @@ do
 	end
 
 	loadXmlQueue = function()
+		p("@@@@@@@@@@ checking queue")
 		if #xml.queue > 0 then
+			p("@@@@@@@@@@ creating queue")
 			xml[xml.queue[1]].timer = timer.setTimeoutCoro(1500, fail, xml.queue[1])
-
+			p("@@@@@@@@@@ loading map")
 			tfm:sendCommand("np " .. xml.queue[1])
 		end
 	end
@@ -1291,7 +1293,7 @@ do
 		["map"] = {
 			h = "Gets the image of the map specified.",
 			f = function(message, parameters, _xmlOnly)
-				if not parameters or not string.find(parameters, "^@%d%d%d") or string.find(parameters, "[^@%d]") then return end
+				if not parameters or not string.find(parameters, "^@%d%d%d%d+$") then return end
 
 				if xml[parameters] then
 					toDelete[message.id] = message:reply("<@" .. message.author.id .. ">, the map **" .. parameters .. "** already is in the queue.")
@@ -1303,9 +1305,11 @@ do
 				xml[parameters] = { message = message, _xmlOnly = _xmlOnly }
 
 				if len == 1 then
+					p("@@@@@@@@@@ loading map")
 					loadXmlQueue()
 				else
-					local time = 3 * (len - 1)
+					p("@@@@@@@@@@ scheduling map")
+					local time = 8 * (len - 1)
 					xml[parameters].reply = message:reply("<@" .. message.author.id .. ">, your request is in the position #" .. len .. " and will be executed in ~" .. time .. "seconds!")
 				end
 			end
@@ -1331,6 +1335,7 @@ do
 					v._timer = 0
 				end
 				cachedTeamListDisplay = { }
+				rewardsTimer = { }
 				message:reply("Cleared cache")
 			end
 		},
@@ -1843,6 +1848,9 @@ end
 local executeCommand = function(isChatCommand, content, target, playerName, isDebugging, playerCommunity, checkCommandSimilarity)
 	local returnValue, countByByte
 	local cmd, param, hasPrefix = getCommandParameters(content)
+	if isChatCommand and cmd == "help" and not hasPrefix then
+		return false
+	end
 
 	if param == '?' and hasPrefix then
 		param = cmd
@@ -2158,6 +2166,7 @@ end))
 
 tfm:once("joinTribeHouse", protect(function()
 	print("Joined Tribe House")
+	tfm:processXml()
 	print("Loading module")
 	tfm:sendCommand("module bolodefchoco")
 	timer.setInterval(60 * 60 * 1000 * 2, function()
@@ -2236,7 +2245,7 @@ tfm:on("profileLoaded", protect(function(data)
 					((data.tribeName and data.tribeName ~= '') and ("\n<:tribe:458407729736974357> **Tribe :** " .. data.tribeName) or '') ..
 
 					"\n\n**Level " .. data.level .. "**" ..
-					"\n**Current Title :** «" .. title .. "»" ..
+					"\n**Current Title :** `«" .. title .. "»`" ..
 					"\n**Adventure points :** " .. data.adventurePoints ..
 
 					"\n\n<:shaman:512015935989612544> " .. data.saves.normal .. " / " .. data.saves.hard .. " / " .. data.saves.divine ..
@@ -2607,8 +2616,10 @@ tfm:on("roomList", protect(function(roomMode, rooms, pinned)
 end))
 
 tfm:on("newGame", protect(function(map)
+	p("@@@@@@@@@@ loaded " .. tostring(map.code))
 	map.code = "@" .. map.code
 	if map.xml and map.xml ~= '' and map.code and xml[map.code] then
+		p("@@@@@@@@@@ exists " .. tostring(map.code))
 		timer.clearTimeout(xml[map.code].timer)
 
 		if #map.xml <= 23000 then
@@ -2620,9 +2631,11 @@ tfm:on("newGame", protect(function(map)
 				})
 				timer.setTimeout(20000, m.delete, m)
 			else
-				head, body = http.request("POST", "https://xml-drawer.herokuapp.com/", specialHeaders.urlencoded, "xml=" .. encodeUrl(map.xml))
+				p("@@@@@@@@@@ request init " .. tostring(os.time()))
 
-				if head.code == 200 then
+				head, body = http.request("POST", "https://xml-drawer.herokuapp.com/", specialHeaders.urlencoded, "xml=" .. encodeUrl(map.xml), 10000)
+
+				if head and head.code == 200 then
 					local tmp = string.match(os.tmpname(), "([^/]+)$") .. ".png" -- Match needed so it doesn't glitch 'attachment://'
 					local file = io.open(tmp, 'w')
 					file:write(body)
@@ -2639,9 +2652,12 @@ tfm:on("newGame", protect(function(map)
 						},
 						file = tmp
 					})
+					p("@@@@@@@@@@ request end " .. tostring(os.time()))
 
 					os.remove(tmp)
 				else
+					p("@@@@@@@@@@ request with error " .. tostring(os.time()))
+
 					xml[map.code].message:reply({
 						content = "<@" .. xml[map.code].message.author.id .. ">",
 						embed = {
@@ -2674,6 +2690,9 @@ tfm:on("newGame", protect(function(map)
 				}
 			})
 		end
+		if not xml[map.code] then return error(map.code, xml, xml[map.code], xml[map.code:sub(2)], p(xml)) end -- potential bug fix?
+
+		p("@@@@@@@@@@ try reply " .. tostring(map and map.code or "??"))
 
 		if xml[map.code].reply then
 			xml[map.code].reply:delete()
