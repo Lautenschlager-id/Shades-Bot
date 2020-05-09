@@ -3,6 +3,7 @@ local CHAR_LIM = 255
 local CHAT_MSG_LIM = 2
 local WHISPER_MSG_LIM = 3
 local ANTI_SPAM_TIME = 8
+local REWARDS_TIME = 10
 local DATA = { }
 do
 	local counter = 0
@@ -20,13 +21,14 @@ local json = require("json")
 -- Libs
 local discordia = require("discordia")
 local transfromage = require("Transfromage")
+local clock, totalMinutes = discordia.Clock(), 0
 
 -- Init
 local disc = discordia.Client({
 	cacheAllMembers = true
 })
 disc._options.routeDelay = 0
-local tfm = transfromage.client:new(nil, nil, true)
+local tfm = transfromage.client:new(nil, nil, true, true)
 
 -- Init methods
 string.trim = function(str)
@@ -35,6 +37,19 @@ end
 
 string.isSimilar = function(src, try, _perc)
 	return discordia.extensions.string.levenshtein(string.lower(src), string.lower(try)) <= math.ceil(#src * (_perc or .3))
+end
+
+string.count = function(str, o)
+	local count = 0
+	local pos = 1
+	local i, j
+	while true do
+		i, j = string.find(str, o, pos, true)
+		if not i then break end
+		count = count + 1
+		pos = j + 1
+	end
+	return count
 end
 
 table.map = function(list, f)
@@ -209,6 +224,8 @@ local mapcrewListByCategoryContent
 local teamListHasBeenChanged = false
 local teamListFileTimer = 0
 
+local commandActivity, saveActivity
+
 local githubWebhook = {
 	id = "649659668913717270",
 	name = "Lautenschlager-id",
@@ -235,6 +252,7 @@ local toDelete = setmetatable({}, {
 })
 
 -- Functions
+local saveCommandActivity, saveDatabase
 do
 	_G.error = function(msg, lvl)
 		coroutine.wrap(function(msg, lvl)
@@ -247,6 +265,9 @@ do
 			else
 				if disc then
 					disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, high level error.\n```\n" .. msg .. "```")
+					if saveActivity then
+						saveCommandActivity()
+					end
 				end
 				os.exit(p(msg, lvl))
 			end
@@ -547,7 +568,7 @@ local printf = function(...)
 end
 
 local getDatabase = function(fileName, isRaw)
-	local _, body = http.request("GET", "http://discbotdb.000webhostapp.com/get?k=" .. DATA[9] .. "&e=json&f=" .. fileName)
+	local _, body = http.request("GET", "http://discorddb.000webhostapp.com/get?k=" .. DATA[9] .. "&e=json&f=" .. fileName)
 	body = (not isRaw and json.decode(body) or body)
 
 	if not body then
@@ -557,14 +578,33 @@ local getDatabase = function(fileName, isRaw)
 	return body
 end
 
-local saveDatabase = function(fileName, data, isRaw)
+saveDatabase = function(fileName, data, isRaw)
 	if not isRaw then
 		data = json.encode(data)
 	end
 
-	local _, body = http.request("POST", "http://discbotdb.000webhostapp.com/set?k=" .. DATA[9] .. "&e=json&f=" .. fileName, specialHeaders.json, data)
+	local _, body = http.request("POST", "http://discorddb.000webhostapp.com/set?k=" .. DATA[9] .. "&e=json&f=" .. fileName, nil--[[specialHeaders.json]], data)
 
 	return body == "true"
+end
+
+local getRandomTmpRoom = function()
+	return "*#bolodefchoco" .. math.random(6666, 9999) .. "d_shades"
+end
+
+saveCommandActivity = function()
+	local tentative, saved = 0
+	repeat
+		tentative = tentative + 1
+		saved = saveDatabase("shadesCommandsActivity", commandActivity)
+	until saved or tentative > 5
+
+	if tentative > 5 then
+		object.shadestest:send("<@" .. disc.owner.id .. ">, could not save commandActivity data.")
+	else
+		print("Saved commandActivity data.")
+		saveActivity = false
+	end
 end
 
 -- Command Functions
@@ -663,7 +703,6 @@ do
 		title = "Fail"
 	}
 	local fail = function(mapCode)
-		p("@@@@@@@@@@ fail mapCode")
 		failEmbed.description = "Map **" .. mapCode .. "** doesn't exist or can't be loaded."
 		xml[mapCode].message:reply({
 			content = "<@" .. xml[mapCode].message.author.id .. ">",
@@ -681,11 +720,8 @@ do
 	end
 
 	loadXmlQueue = function()
-		p("@@@@@@@@@@ checking queue")
 		if #xml.queue > 0 then
-			p("@@@@@@@@@@ creating queue")
 			xml[xml.queue[1]].timer = timer.setTimeoutCoro(1500, fail, xml.queue[1])
-			p("@@@@@@@@@@ loading map")
 			tfm:sendCommand("np " .. xml.queue[1])
 		end
 	end
@@ -851,14 +887,29 @@ do
 		until hasSaved or tentative > 5
 
 		if tentative > 5 then
-			disc:getChannel(channel.shadestest):send("<@" .. disc.owner.id .. ">, could not save modTracker data.")
+			object.shadestest:send("<@" .. disc.owner.id .. ">, could not save modTracker data.")
 		end
 	end)
 end
 
+local addCommandActivity = function(where, command)
+	local today = os.date("%d/%m/%Y")
+	if not commandActivity[today] then
+		commandActivity[today] = {
+			[1] = { }, -- Game
+			[2] = { } -- Server
+		}
+	end
+
+	where = (where == "game" and 1 or 2)
+	where = commandActivity[today][where]
+	where[command] = (where[command] or 0) + 1
+	saveActivity = true
+end
+
 -- Commands
 local chatHelpSource, whisperHelpSource, memberHelpSource
-local commandWrapper, chatCommand, whisperCommand, serverCommand
+local commandWrapper, chatCommand, whisperCommand, serverCommand, fastReplyCommand
 do
 	local help = function(src, param, level, language, prefix, includePriv)
 		language = language or "en"
@@ -883,7 +934,7 @@ do
 		local cmds, counter = { }, 0
 		for c = 1, #src do
 			c = src[c]
-			if includePriv or not cmdList[c] or not cmdList[c].priv then -- there might be cmdWrap+other
+			if includePriv or not cmdList[c] or (not cmdList[c].priv and not cmdList[c].maintenance) then -- there might be cmdWrap+other
 				counter = counter + 1
 				cmds[counter] = prefix .. c
 			end
@@ -946,7 +997,7 @@ do
 		["luadoc"] = {
 			link = true,
 			h = "$hdoc",
-			f = function()
+			f = function(playerCommunity)
 				return translate(playerCommunity, "$doc", "https://atelier801.com/topic?f=5&t=451587&p=1#m3")
 			end
 		},
@@ -959,10 +1010,16 @@ do
 					local d = teams[param] or (teamAliases[param] and teams[teamAliases[param]])
 					return (d and translate(playerCommunity, "$app", d[1], d[2]) or translate(playerCommunity, "$noapp"))
 				else
-					return translate(playerCommunity, "$ateam", table.concat(table.map(teams, function(value)
+					return translate(playerCommunity, "$ateam", "apply", table.concat(table.map(teams, function(value)
 						return value[1]
 					end), " | "))
 				end
+			end
+		},
+		["bgcolor"] = {
+			h = "$hbgcolor",
+			f = function(playerCommunity)
+				return translate(playerCommunity, "$bgcolor", "#6A7495")
 			end
 		}
 	}
@@ -1026,7 +1083,7 @@ do
 			link = true,
 			h = "$make",
 			f = function(playerCommunity, isDebugging, playerName)
-				return translate(playerCommunity, "$dmake", "discord.gg/quch83R")
+				return translate(playerCommunity, "$dmake", "discord.gg/qmdryEB")
 			end
 		},
 		["sentinel"] = c_sent,
@@ -1078,7 +1135,7 @@ do
 		["rewards"] = {
 			h = "$rewards",
 			f = function(playerCommunity, isDebugging, playerName, parameters)
-				if rewardsTimer[playerName] then
+				if (rewardsTimer[playerName] and (rewardsTimer[playerName] > os.time())) then
 					return translate(playerCommunity, "$cooldown")
 				end
 
@@ -1127,7 +1184,7 @@ do
 				end
 				local set = table.set(list)
 
-				local nickname = string.match(parameters, "%+?%a[%w_][%w_][%w_]+#%d%d%d%d")
+				local nickname = string.match(parameters, "%+?%a[%w_][%w_]+#%d%d%d%d")
 				nickname = nickname and string.toNickname(nickname) or playerName
 
 				local isNewMapcrew = false
@@ -1212,7 +1269,7 @@ do
 						table.sort(mapcrewData[nickname].arr)
 					end
 					coroutine.wrap(function()
-						object.shadestest:send("<@" .. disc.owner.id .. "> **" .. playerName .. "** → ,mapcat " .. parameters .. "\nsaved: " .. tostring(saveDatabase("mapcrew", mapcrewData)))
+						object.shadestest:send("<@" .. disc.owner.id .. "> **" .. playerName .. "** → ,mapcat " .. parameters .. "\nsaved: " .. tostring(saveDatabase("mapcrewMembers", mapcrewData)))
 					end)()
 				else
 					if isNewMapcrew then
@@ -1229,7 +1286,10 @@ do
 			h = "Displays the available commands / the commands descriptions.",
 			f = function(message, parameters)
 				local isPriv = (message.channel.category and message.channel.category.id == categoryId)
-				toDelete[message.id] = message:reply((string.gsub(help(memberHelpSource, parameters, (isPriv and 2 or 3), "en", '/', isPriv), '\'', '`')))
+				toDelete[message.id] = message:reply({
+					content = (string.gsub(help(memberHelpSource, parameters, (isPriv and 2 or 3), "en", '/', isPriv), '\'', '`')),
+					allowed_mentions = { parse = { } }
+				})
 			end
 		},
 		["who"] = {
@@ -1305,10 +1365,8 @@ do
 				xml[parameters] = { message = message, _xmlOnly = _xmlOnly }
 
 				if len == 1 then
-					p("@@@@@@@@@@ loading map")
 					loadXmlQueue()
 				else
-					p("@@@@@@@@@@ scheduling map")
 					local time = 8 * (len - 1)
 					xml[parameters].reply = message:reply("<@" .. message.author.id .. ">, your request is in the position #" .. len .. " and will be executed in ~" .. time .. "seconds!")
 				end
@@ -1787,7 +1845,7 @@ do
 			auth = "585148219395276801",
 			h = "Fixes tribe house.",
 			f = function(message, parameters)
-				serverCommand["goto"](message, "hell")
+				serverCommand["goto"](message, getRandomTmpRoom())
 				timer.setTimeoutCoro(4000, serverCommand["goto"].f, message, "tribe")
 				timer.setTimeoutCoro(4000 + 2500, serverCommand["clear"].f, message)
 				timer.setTimeoutCoro(4000 + 2500 + 500, serverCommand["bolo"].f, message, tribe)
@@ -1796,6 +1854,10 @@ do
 				timer.setTimeoutCoro(4000 + 2500 + 500 + 500 + 2500 + 2500, serverCommand["clear"].f, message)
 			end
 		}
+	}
+
+	fastReplyCommand = {
+		["LUA"] = "$upperlua"
 	}
 end
 
@@ -1845,6 +1907,14 @@ local userAntiSpam = function(src, playerName, playerCommunity)
 	end
 end
 
+local chooseSendMethod = function(chatCond, target, returnValue, countByByte)
+	if chatCond then
+		tfm:sendChatMessage(target, returnValue, nil, countByByte)
+	else
+		tfm:sendWhisper(target, returnValue, nil, countByByte)
+	end
+end
+
 local executeCommand = function(isChatCommand, content, target, playerName, isDebugging, playerCommunity, checkCommandSimilarity)
 	local returnValue, countByByte
 	local cmd, param, hasPrefix = getCommandParameters(content)
@@ -1858,16 +1928,13 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 	end
 
 	if commandWrapper[cmd] then
-		returnValue = userAntiSpam(commandWrapper[cmd], target, playerCommunity)
+		returnValue = userAntiSpam(commandWrapper[cmd], playerName, playerCommunity)
 		if not returnValue then -- if because "a, b = c() or d()" doesn't apply for multiple values. :s
-			returnValue, countByByte = commandWrapper[cmd](playerCommunity, param, target, isChatCommand)
+			returnValue, countByByte = commandWrapper[cmd](playerCommunity, param, playerName, isChatCommand)
+			addCommandActivity("game", cmd)
 		end
 		if returnValue then
-			if isChatCommand or isDebugging then
-				tfm:sendChatMessage(target, returnValue, nil, countByByte)
-			else
-				tfm:sendWhisper(target, returnValue, nil, countByByte)
-			end
+			chooseSendMethod((isChatCommand or isDebugging), target, returnValue, countByByte)
 		end
 		return true
 	else
@@ -1876,6 +1943,7 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 				returnValue = userAntiSpam(chatCommand[cmd], playerName, playerCommunity)
 				if not returnValue then
 					returnValue, countByByte = chatCommand[cmd](playerCommunity, target, playerName, param)
+					addCommandActivity("game", cmd)
 				end
 				if returnValue then
 					tfm:sendChatMessage(target, returnValue, nil, countByByte)
@@ -1890,21 +1958,18 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 						returnValue = translate(playerCommunity, "$maintenance")
 					else
 						returnValue, countByByte = whisperCommand[cmd](playerCommunity, isDebugging, playerName, param)
+						addCommandActivity("game", cmd)
 					end
 				end
 				if returnValue then
-					if isDebugging then
-						tfm:sendChatMessage(target, returnValue, nil, countByByte)
-					else
-						tfm:sendWhisper(target, returnValue, nil, countByByte)
-					end
+					chooseSendMethod(isDebugging, target, returnValue, countByByte)
 				end
 				return true
 			end
 		end
 	end
 
-	if checkCommandSimilarity and (cmd and hasPrefix) then -- only for whisper
+	if checkCommandSimilarity and (cmd and (hasPrefix or string.count(content, ' ') < 4)) then -- only for whisper
 		local possibilities, counter = { }, 0
 		for k = 1, #whisperHelpSource do
 			k = whisperHelpSource[k]
@@ -1916,14 +1981,20 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 
 		if counter > 0 then
 			returnValue = translate(playerCommunity, "$tryCommand", "'," .. table.concat(possibilities, "' | ',") .. "'")
-			if isDebugging then
-				tfm:sendChatMessage(target, returnValue)
-			else
-				tfm:sendWhisper(target, returnValue)
-			end
+			chooseSendMethod(isDebugging, target, returnValue)
 		end
 	end
 
+	return false
+end
+
+local checkFastReply = function(isChatCommand, content, target, playerName, playerCommunity)
+	for pat, value in next, fastReplyCommand do
+		if string.find(content, pat) then
+			chooseSendMethod(isChatCommand, target, translate(playerCommunity, value, playerName))
+			return true
+		end
+	end
 	return false
 end
 
@@ -1950,7 +2021,7 @@ disc:once("ready", function()
 end)
 
 disc:on("messageCreate", protect(function(message)
-	if not isWorking then return end
+	if not isWorking and message.author.id ~= disc.owner.id then return end
 	if message.author.bot then
 		if (message.author and message.embed and message.embed.author and message.embed.description)
 			and message.author.id == githubWebhook.id
@@ -2009,12 +2080,16 @@ disc:on("messageCreate", protect(function(message)
 					end
 					if serverCommand[cmd].auth and not (serverCommand[cmd].allowMember and isMember) then
 						if not message.member:hasRole(serverCommand[cmd].auth) then
-							toDelete[message.id] = message:reply("<@" .. message.author.id .. ">, you must have the role <@&" .. serverCommand[cmd].auth .. "> in order to use this command!")
+							toDelete[message.id] = message:reply({
+								content = "<@" .. message.author.id .. ">, you must have the role <@&" .. serverCommand[cmd].auth .. "> in order to use this command!",
+								allowed_mentions = { parse = { "users" } }
+							})
 							return
 						end
 					end
 				end
 
+				addCommandActivity("server", cmd)
 				return serverCommand[cmd](message, param)
 			end
 		end
@@ -2031,6 +2106,7 @@ disc:on("messageCreate", protect(function(message)
 	local cutSlice
 	if (channel.whisper == message.channel.id) then -- on whisper
 		local target, msgContent = string.match(content, "^,(.-) +(.+)")
+		if not msgContent then return end
 
 		if target == 'r' then
 			if not lastUserReply then
@@ -2053,8 +2129,9 @@ disc:on("messageCreate", protect(function(message)
 	else
 		if message.channel.id == channel.shadestest then
 			-- Whisper comes first because of ',help'
-			local executed = executeCommand(false, content, channel(message.channel.id), helper[message.author.id], true, true)
-			executed = executed or executeCommand(true, content, channel(message.channel.id), helper[message.author.id])
+			local target, playerName = channel(message.channel.id), string.toNickname(helper[message.author.id], true)
+			local executed = executeCommand(false, content, target, playerName, true, true)
+			executed = executed or executeCommand(true, content, target, playerName)
 			if executed then return end
 		end
 
@@ -2097,10 +2174,17 @@ disc:on("messageUpdate", protect(function(message)
 	end
 end))
 
+clock:on("min", protect(function()
+	totalMinutes = totalMinutes + 1
+	if totalMinutes % 5 == 0 and saveActivity then
+		saveCommandActivity()
+	end
+end))
+
 -- Transformice emitters
 tfm:on("ready", protect(function()
 	print("Connecting")
-	tfm:connect(DATA[1], DATA[2])
+	tfm:connect(DATA[1], DATA[2], getRandomTmpRoom())
 end))
 
 tfm:once("heartbeat", protect(function()
@@ -2146,8 +2230,13 @@ tfm:once("connection", protect(function()
 	until teamList
 	ENV.teamList = teamList
 	repeat
+		print("Getting commands activity")
+		commandActivity = getDatabase("shadesCommandsActivity")
+	until commandActivity
+	ENV.commandActivity = commandActivity
+	repeat
 		print("Getting mapcrew list")
-		mapcrewData = getDatabase("mapcrew")
+		mapcrewData = getDatabase("mapcrewMembers")
 	until mapcrewData
 
 	-- Normalize string indexes
@@ -2158,10 +2247,17 @@ tfm:once("connection", protect(function()
 		end
 		table.sort(mapcrewData[k].arr)
 	end
-
 	ENV.mapcrewData = mapcrewData
 
 	modTracker.init()
+
+	timer.setTimeout(20000, function()
+		if isWorking then return end
+		isWorking = true
+		print("Working forced")
+	end)
+
+	clock:start()
 end))
 
 tfm:once("joinTribeHouse", protect(function()
@@ -2181,7 +2277,7 @@ tfm:once("joinTribeHouse", protect(function()
 end))
 
 tfm:on("chatMessage", protect(function(channelName, playerName, message, playerCommunity)
-	if not channel[channelName] then return end
+	if not object[channelName] then return end
 	if channelName == "whisper" then return end -- :P
 	p(channelName, playerName, message, playerCommunity)
 
@@ -2194,7 +2290,9 @@ tfm:on("chatMessage", protect(function(channelName, playerName, message, playerC
 	object[channelName]:send(content)
 
 	if playerName ~= DATA[1] then
-		executeCommand(true, message, channelName, playerName, nil, playerCommunity)
+		if not executeCommand(true, message, channelName, playerName, nil, playerCommunity) then
+			checkFastReply(true, message, channelName, playerName, playerCommunity)
+		end
 	end
 end))
 
@@ -2215,7 +2313,9 @@ tfm:on("whisperMessage", protect(function(playerName, message, playerCommunity)
 	object.whisper:send(content)
 
 	if not isBot then
-		executeCommand(false, message, playerName, playerName, nil, playerCommunity, true)
+		if not executeCommand(false, message, playerName, playerName, nil, playerCommunity, true) then
+			checkFastReply(false, message, playerName, playerName, playerCommunity)
+		end
 	end
 end))
 
@@ -2326,7 +2426,12 @@ tfm:on("profileLoaded", protect(function(data)
 		checkTitles[data.playerName] = nil
 	elseif checkAvailableRewards[data.playerName] then
 		local srcRewards = checkAvailableRewards[data.playerName]
-		rewardsTimer[srcRewards.playerName] = os.time() + (5 * 60)
+		rewardsTimer[srcRewards.playerName] = os.time() + (REWARDS_TIME * 60)
+
+		local commu = srcRewards.playerCommunity
+		if not translate[commu] then
+			commu = "en"
+		end
 
 		-- Avoid json arrays
 		data.badges._ignore = true
@@ -2344,7 +2449,7 @@ tfm:on("profileLoaded", protect(function(data)
 		local title, hasGender
 		for t = 0, 600 do -- Cannot know how many titles there are
 			if not unavailableTitles[t] and not data.titles[t] then
-				title = getTitle(t, data.gender)
+				title = getTitle(t, data.gender, commu)
 				if title ~= t then
 					counter = counter + 1
 					titles[counter] = title
@@ -2465,6 +2570,7 @@ tfm:on("chatWho", protect(function(chatName, data)
 end))
 
 tfm:on("staffList", protect(function(list)
+	p("@@@@@@@@@@@@@ staff list 1")
 	local isMod = false
 	local hasOnline = true
 	local title, whisperTitle
@@ -2494,6 +2600,7 @@ tfm:on("staffList", protect(function(list)
 		if isMod and modTracker.requested then
 			modTracker.receive(list)
 		end
+		p("@@@@@@@@@@@@@ staff list 2")
 
 		list = string.gsub(string.sub(list, 2), "<.->", '')
 
@@ -2528,6 +2635,7 @@ tfm:on("staffList", protect(function(list)
 		end
 
 		discordList = string.gsub((discordList or list), "#%d+", "`%1`")
+		p("@@@@@@@@@@@@@ staff list 3")
 	end
 
 	local embed = {
@@ -2542,11 +2650,17 @@ tfm:on("staffList", protect(function(list)
 	}
 
 	local listSrc = (isMod and modList or mapcrewList)
+	p("@@@@@@@@@@@@@ staff list 4 #" .. #listSrc)
 	for i = 1, #listSrc do
 		i = listSrc[i]
 		if i.author then -- discord || mod
 			embed.embed.footer.text = "Requested by " .. i.author.fullname
-			i:reply(embed)
+			p("@@@@@@@@@@@@@ staff list 5 requesting [1]")
+			local _, d = i:reply(embed)
+			if not _ then
+				p(d)
+			end
+			p("@@@@@@@@@@@@@ staff list 5 end requesting [1]")
 		else -- whisper
 			if not hasOnline then
 				whisperList = translate(i.playerCommunity, whisperList)
@@ -2616,10 +2730,8 @@ tfm:on("roomList", protect(function(roomMode, rooms, pinned)
 end))
 
 tfm:on("newGame", protect(function(map)
-	p("@@@@@@@@@@ loaded " .. tostring(map.code))
 	map.code = "@" .. map.code
 	if map.xml and map.xml ~= '' and map.code and xml[map.code] then
-		p("@@@@@@@@@@ exists " .. tostring(map.code))
 		timer.clearTimeout(xml[map.code].timer)
 
 		if #map.xml <= 23000 then
@@ -2631,9 +2743,9 @@ tfm:on("newGame", protect(function(map)
 				})
 				timer.setTimeout(20000, m.delete, m)
 			else
-				p("@@@@@@@@@@ request init " .. tostring(os.time()))
-
+				p("@@@@@@@@@@@@@ drawing ini " .. os.time())
 				head, body = http.request("POST", "https://xml-drawer.herokuapp.com/", specialHeaders.urlencoded, "xml=" .. encodeUrl(map.xml), 10000)
+				p("@@@@@@@@@@@@@ drawing end " .. os.time())
 
 				if head and head.code == 200 then
 					local tmp = string.match(os.tmpname(), "([^/]+)$") .. ".png" -- Match needed so it doesn't glitch 'attachment://'
@@ -2643,6 +2755,7 @@ tfm:on("newGame", protect(function(map)
 					file:close()
 
 					local perm = (mapCategory[map.perm] or mapCategory.default)
+					p("@@@@@@@@@@@@@ posting ini " .. os.time())
 					xml[map.code].message:reply({
 						content = "<@" .. xml[map.code].message.author.id .. ">",
 						embed = {
@@ -2652,12 +2765,11 @@ tfm:on("newGame", protect(function(map)
 						},
 						file = tmp
 					})
-					p("@@@@@@@@@@ request end " .. tostring(os.time()))
+					p("@@@@@@@@@@@@@ posting end " .. os.time())
 
 					os.remove(tmp)
 				else
-					p("@@@@@@@@@@ request with error " .. tostring(os.time()))
-
+					p("@@@@@@@@@@@@@ posting fail ini " .. os.time())
 					xml[map.code].message:reply({
 						content = "<@" .. xml[map.code].message.author.id .. ">",
 						embed = {
@@ -2678,6 +2790,7 @@ tfm:on("newGame", protect(function(map)
 							}
 						}
 					})
+					p("@@@@@@@@@@@@@ posting fail end " .. os.time())
 				end
 			end
 		else
@@ -2691,8 +2804,6 @@ tfm:on("newGame", protect(function(map)
 			})
 		end
 		if not xml[map.code] then return error(map.code, xml, xml[map.code], xml[map.code:sub(2)], p(xml)) end -- potential bug fix?
-
-		p("@@@@@@@@@@ try reply " .. tostring(map and map.code or "??"))
 
 		if xml[map.code].reply then
 			xml[map.code].reply:delete()
@@ -2742,6 +2853,7 @@ ENV = setmetatable({
 	CHAT_MSG_LIM = CHAT_MSG_LIM,
 	WHISPER_MSG_LIM = WHISPER_MSG_LIM,
 	ANTI_SPAM_TIME = ANTI_SPAM_TIME,
+	REWARDS_TIME = REWARDS_TIME,
 	timer = timer,
 	http = http,
 	json = json,
@@ -2821,7 +2933,16 @@ ENV = setmetatable({
 	pairsByIndexes = pairsByIndexes,
 	countryFlags = countryFlags,
 	isPlayer = isPlayer,
-	rewardsTimer = rewardsTimer
+	rewardsTimer = rewardsTimer,
+	fastReplyCommand = fastReplyCommand,
+	saveActivity = function()
+		return saveActivity
+	end,
+	saveCommandActivity = saveCommandActivity,
+	clock = clock,
+	totalMinutes = function()
+		return totalMinutes
+	end
 }, {
 	__index = _G
 })
