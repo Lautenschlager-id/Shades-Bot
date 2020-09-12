@@ -1,9 +1,10 @@
 -- Consts
 local CHAR_LIM = 255
-local CHAT_MSG_LIM = 2
-local WHISPER_MSG_LIM = 3
-local ANTI_SPAM_TIME = 8
+local CHAT_MSG_LIM = 3
+local WHISPER_MSG_LIM = 4
+local ANTI_SPAM_TIME = 5
 local REWARDS_TIME = 10
+local FAST_REPLY_TIME = 10
 local DATA = { }
 do
 	local counter = 0
@@ -21,6 +22,7 @@ local json = require("json")
 -- Libs
 local discordia = require("discordia")
 local transfromage = require("Transfromage")
+local fromage = require("fromage")
 local clock, totalMinutes = discordia.Clock(), 0
 
 -- Init
@@ -28,7 +30,7 @@ local disc = discordia.Client({
 	cacheAllMembers = true
 })
 disc._options.routeDelay = 0
-local tfm = transfromage.client:new(nil, nil, true, true)
+local tfm = transfromage.client:new(nil, nil, true)--, true)
 
 -- Init methods
 string.trim = function(str)
@@ -52,6 +54,17 @@ string.count = function(str, o)
 	return count
 end
 
+string.split2 = function(str, pat)
+	local out, counter = { }, 0
+
+	for v in string_gmatch(str, pat) do
+		counter = counter + 1
+		out[counter] = tonumber(v) or v
+	end
+
+	return out
+end
+
 table.map = function(list, f)
 	local newList, counter = { }, 0
 	for k, v in next, list do
@@ -60,7 +73,13 @@ table.map = function(list, f)
 	end
 	return newList
 end
-
+table.mapArray = function(arr, f)
+	local newArray = { }
+	for i = 1, #arr do
+		newArray[i] = f(arr[i])
+	end
+	return newArray
+end
 table.keys = function(list, f)
 	local out, counter = { }, 0
 	for k, v in next, list do
@@ -105,7 +124,8 @@ local channel = transfromage.enum({
 	mapcrew = "565716126814830612",
 	shadestest = "546429085451288577",
 	whisper = "547882749348806673",
-	teamTool = "663181550891958295"
+	teamTool = "663181550891958295",
+	modulesTool = "720287808002064467"
 })
 local settingchannel = {
 	discussion = "544935729508253717",
@@ -133,7 +153,8 @@ local checkTitles = { }
 local friendRemoval
 local displayBlacklist = { }
 local checkAvailableRewards = { }
-local rewardsTimer = { }
+local rewardsCooldown = { }
+local fastReplyCooldown = { }
 
 local mapCategory = require("data/mapCategory")
 local roleColors = require("data/roleColors")
@@ -141,7 +162,7 @@ local countryFlags = require("data/countryFlags")
 
 local titleRequirements = require("data/titleRequirements")
 
-local titleFields = { "cheeses", "firsts", "savesNormal", "savesHard", "savesDivine", "bootcamps" }
+local titleFields = { "cheese", "firsts", "savesNormal", "savesHard", "savesDivine", "bootcamps" }
 local titleFieldsKeys = { "$cheese", "$first", "$svnormal", "$svhard", "$svdiv", "$boot" }
 
 local unavailableTitles = require("data/unavailableTitles")
@@ -178,6 +199,9 @@ do
 			rawset(this, index, require("data/lang/" .. index))
 		end,
 		__call = function(this, community, str, ...)
+			if type(this[community]) == "string" then
+				community = this[community]
+			end
 			community = community and this[community] or this.en
 
 			str = string.gsub(str, "%$(%w+)", function(line)
@@ -187,7 +211,7 @@ do
 		end
 	}
 
-	translate = setmetatable({ }, meta)
+	translate = setmetatable({ pt = "br" }, meta)
 end
 
 translate.en = true
@@ -223,6 +247,8 @@ local mapcrewListByCategoryContent
 
 local teamListHasBeenChanged = false
 local teamListFileTimer = 0
+
+local modules
 
 local commandActivity, saveActivity
 
@@ -435,7 +461,7 @@ local formatServerMemberList = function(str, role, requester)
 	}
 end
 
-local splitMsgByWord = function(user, msg, maxMsgs, countByByte)
+local splitMsgByWord_old = function(user, msg, maxMsgs, countByByte)
 	user = (user and ("[" .. user .. "] ") or '')
 
 	local maxLen = CHAR_LIM - #user
@@ -467,6 +493,64 @@ local splitMsgByWord = function(user, msg, maxMsgs, countByByte)
 	end
 
 	return messages, (contentLen >= current and table.concat(msg, nil, current) or nil) -- Messages, Missing
+end
+
+local splitMsgByWord = function(user, msg, maxMsgs, countByByte)
+	user = (user and ("[" .. user .. "] ") or '')
+	maxMsgs = maxMsgs + 1
+
+	msg = string.trim(msg)
+	local msgLenByByte = #msg
+
+	msg = string.utf8(msg)
+	local msgLenByChar = #msg
+
+	local maxMessageLen = CHAR_LIM - #user
+	if countByByte then
+		maxMessageLen = maxMessageLen - (msgLenByByte - msgLenByChar)
+	end
+
+	local messages, totalMessages = { }, 1
+	local messageLen, currentMessageLen = 0, 0
+
+	local iniWord = 1
+	local endWord
+	local delimSpaceOnEndWord
+
+	local currentChar, isLastChar = 0
+	while currentChar <= msgLenByChar do
+		currentChar = currentChar + 1
+		isLastChar = currentChar == msgLenByChar
+
+		if msg[currentChar] == ' ' then
+			endWord = currentChar - 1
+		end
+
+		currentMessageLen = currentMessageLen + 1
+		if currentMessageLen >= maxMessageLen or isLastChar then
+			if not endWord or isLastChar then
+				endWord = currentChar
+				delimSpaceOnEndWord = 1
+			else
+				delimSpaceOnEndWord = 2
+			end
+
+			messages[totalMessages] = user .. table.concat(msg, nil, iniWord, endWord)
+			totalMessages = totalMessages + 1
+
+			messageLen = messageLen + (endWord - iniWord + 1)
+
+			endWord = endWord + delimSpaceOnEndWord
+			if totalMessages == maxMsgs or isLastChar then break end
+
+			currentMessageLen = 0
+			iniWord = endWord
+			currentChar = iniWord
+			endWord = nil
+		end
+	end
+
+	return messages, (msgLenByChar > messageLen and (table.concat(msg, nil, endWord)) or nil) -- Messages, Missing
 end
 
 local encodeUrl = function(url)
@@ -567,11 +651,13 @@ local printf = function(...)
 	return table.concat(out, "\t")
 end
 
-local getDatabase = function(fileName, isRaw)
+local getDatabase = function(fileName, isRaw, ignoreError)
 	local _, body = http.request("GET", "http://discorddb.000webhostapp.com/get?k=" .. DATA[9] .. "&e=json&f=" .. fileName)
-	body = (not isRaw and json.decode(body) or body)
+	if not isRaw then
+		body = json.decode(body)
+	end
 
-	if not body then
+	if not body and not ignoreError then
 		return false, error("[Database] Failed to get data.", transfromage.enum.errorLevel.low)
 	end
 
@@ -583,8 +669,9 @@ saveDatabase = function(fileName, data, isRaw)
 		data = json.encode(data)
 	end
 
+	p('Call save to ' .. fileName)
 	local _, body = http.request("POST", "http://discorddb.000webhostapp.com/set?k=" .. DATA[9] .. "&e=json&f=" .. fileName, nil--[[specialHeaders.json]], data)
-
+	p(body)
 	return body == "true"
 end
 
@@ -835,61 +922,14 @@ end
 local getTitle = function(titleId, gender, community, _ignoreGenderIndex)
 	gender = (_ignoreGenderIndex and gender or (gender % 2 + 1))
 
+	if type(translate[community]) == "string" then
+		community = translate[community]
+	end
+
 	local title, hasGender = transfromage.translation.get(transfromage.enum.language[(community or "en")], "T_" .. titleId)
 	title = (title and (hasGender and title[gender] or title) or titleId)
 
 	return title, hasGender
-end
-
-local modTracker = { }
-do
-	modTracker.requested = false
-	modTracker.data = nil
-
-	local request = function()
-		modTracker.requested = true
-		tfm:sendCommand("mod")
-	end
-
-	modTracker.init = protect(function()
-		repeat
-			print("Getting mod tracker list")
-			modTracker.data = getDatabase("modTracker")
-		until modTracker.data
-
-		request()
-		timer.setInterval(60 * 5 * 1000, request)
-	end)
-
-	local normalize = function(data)
-		data = string.gsub(data, "\n%[.-%] ", '')
-		data = string.gsub(data, "<BV>(.-#)%d+</BV>,? ?", "%1")
-		return data
-	end
-
-	modTracker.receive = protect(function(data)
-		modTracker.requested = false
-
-		data = normalize(data)
-
-		local now = os.date("%d/%m/%Y")
-		if not modTracker.data[now] then
-			modTracker.data[now] = { data }
-		else
-			modTracker.data[now][#modTracker.data[now] + 1] = data
-		end
-
-		print("Saving mod tracker data")
-		local tentative, hasSaved = 0
-		repeat
-			tentative = tentative + 1
-			hasSaved = saveDatabase("modTracker", modTracker.data)
-		until hasSaved or tentative > 5
-
-		if tentative > 5 then
-			object.shadestest:send("<@" .. disc.owner.id .. ">, could not save modTracker data.")
-		end
-	end)
 end
 
 local addCommandActivity = function(where, command)
@@ -905,6 +945,97 @@ local addCommandActivity = function(where, command)
 	where = commandActivity[today][where]
 	where[command] = (where[command] or 0) + 1
 	saveActivity = true
+end
+
+local generateModulesBbcode
+do
+	local header = "[font=monospace][size=13][table]\n[row][cel][color=#E6B57E][b]$bbcodeCommunity[/b][/color][p][/cel][cel]     [/cel][cel][color=#E6B57E][b]Module[/b][/color][/cel][cel]     [/cel][cel][color=#E6B57E][b]$bbcodeLevel[/b][/color][/cel][cel]     [/cel][cel][color=#E6B57E][b]$bbcodeHoster[/b][/color][/cel] 	[/row]"
+	-- flag, module name, [/p], level, encoded hoster name, hoster
+	local row = "[row][cel][img]https://atelier801.com/img/pays/%s.png[/img][/cel][cel]     [/cel][cel][color=#6C77C1]#%s[/color]%s[/cel][cel]     [/cel][cel][color=#CCCCDD]%s[/color][/cel][cel]     [/cel][cel]%s[/cel] 	[/row]"
+	local hosterName = "[url=https://atelier801.com/profile?pr=%s[&&]%s][color=#8FE2D1]%s[size=11][color=#606090]#%s[/color][/size][/color][/url]"
+
+	local getHosterName = function(name)
+		local name, discriminator = string.sub(name, 1, -6), string.sub(name, -4)
+		return string.format(hosterName, name, discriminator, name, discriminator)
+	end
+
+	generateModulesBbcode = function(listAll)
+		-- Generates bbcode
+		local index, bbcode = 1, { header }
+
+		local moduleData, community, isMtMember
+		for i = 1, #modules do
+			moduleData = modules[i]
+
+			if not moduleData.isPrivate or listAll then
+				isMtMember = teamList.mt[moduleData.hoster]
+
+				community = (not moduleData.isPrivate and isMtMember or "xx")
+				community = countryCodeConverted[community] or community
+
+				index = index + 1
+				bbcode[index] = string.format(row, string.lower(community), moduleData.name,
+					((modules[i + 1] and string.sub(modules[i + 1].name, 1, 1) ~= string.sub(moduleData.name, 1, 1)) and "[/p]" or ''),
+					(moduleData.isOfficial and "$bbcodeOfficial" or "$bbcodeSemiOfficial"),
+					((not isMtMember and not listAll) and '-' or getHosterName(moduleData.hoster))
+				)
+			end
+		end
+
+		index = index + 1
+		bbcode[index] = "[/table][/size][/font]"
+
+		return table.concat(bbcode, "\n")
+	end
+end
+
+local updateModulesForumMessage
+do
+	local forum
+	updateModulesForumMessage = function(message, listName, location, newList, connect, disconnect, nickname, password)
+		message:reply("Starting update: " .. listName)
+
+		if connect then
+			forum = fromage()
+			forum.connect(nickname, password)
+		end
+
+		if forum.isConnected() then
+			message:reply("[" .. listName .. "] Connected")
+
+			local tentative, forumMsg, errMsg = 0
+			repeat
+				tentative = tentative + 1
+				forumMsg, errMsg = forum.getMessage(1, location)
+			until forumMsg or tentative > 5
+			if errMsg then
+				error("[" .. listName .. "] GET: " .. tostring(errMsg), transfromage.enum.errorLevel.low)
+			end
+
+			local i, e = string.find(forumMsg.content, "%[table%].-%[/table%]")
+			forumMsg.content = string.sub(forumMsg.content, 1, i - 1) .. newList .. string.sub(forumMsg.content, e + 1)
+
+			local editMessage
+			tentative = 0
+			repeat
+				tentative = tentative + 1
+				editMessage, errMsg = forum.editAnswer(forumMsg.id, forumMsg.content, location)
+			until editMessage or tentative > 5
+			if errMsg then
+				error("[" .. listName .. "] POST: `" .. tostring(errMsg) .. "`", transfromage.enum.errorLevel.low)
+			end
+
+			message:reply(string.format("[%s] https://atelier801.com/topic?f=%d&t=%s `%s`", listName, location.f, location.t, tostring(editMessage)))
+		else
+			error("[" .. listName .. "] CONNECT: Connection failed.", transfromage.enum.errorLevel.low)
+		end
+
+		if disconnect then
+			forum.disconnect()
+			message:reply("[" .. listName .. "] Connection closed")
+			forum = nil
+		end
+	end
 end
 
 -- Commands
@@ -1135,7 +1266,7 @@ do
 		["rewards"] = {
 			h = "$rewards",
 			f = function(playerCommunity, isDebugging, playerName, parameters)
-				if (rewardsTimer[playerName] and (rewardsTimer[playerName] > os.time())) then
+				if (rewardsCooldown[playerName] and (rewardsCooldown[playerName] > os.time())) then
 					return translate(playerCommunity, "$cooldown")
 				end
 
@@ -1177,7 +1308,7 @@ do
 				end
 				local isDel = (method == "delmc")
 
-				local list = string.split(parameters, "p(%d%d?)[%-,/ ]?")
+				local list = string.split2(parameters, "p(%d%d?)[%-,/ ]?")
 				local totalCategories = #list
 				if not isDel and totalCategories == 0 then
 					return "You must include at least one category (PX) in order to use the method " .. method
@@ -1325,7 +1456,7 @@ do
 				tfm:sendCommand("time")
 			end
 		},
-		["modules"] = {
+		["rooms"] = {
 			h = "Displays the room list of official modules",
 			f = function(message)
 				modulesCmd[message.channel.id] = true
@@ -1368,7 +1499,7 @@ do
 					loadXmlQueue()
 				else
 					local time = 8 * (len - 1)
-					xml[parameters].reply = message:reply("<@" .. message.author.id .. ">, your request is in the position #" .. len .. " and will be executed in ~" .. time .. "seconds!")
+					xml[parameters].reply = message:reply("<@" .. message.author.id .. ">, your request is in the position #" .. len .. " and will be executed in ~" .. time .. " seconds!")
 				end
 			end
 		},
@@ -1393,7 +1524,7 @@ do
 					v._timer = 0
 				end
 				cachedTeamListDisplay = { }
-				rewardsTimer = { }
+				rewardsCooldown = { }
 				message:reply("Cleared cache")
 			end
 		},
@@ -1595,7 +1726,10 @@ do
 					toDelete[message.id] = message:reply("Invalid syntax.")
 					return
 				end
-				local module, source = string.match(parameters, "^#(%l+)[\n ]+(https://raw%.githubusercontent.+)$")
+				local module, source = string.match(parameters, "^#(%l+)[\n ]+(https://raw%.githubusercontent%.com/.+)$")
+				if not module then
+					module, source = string.match(parameters, "^#(%l+)[\n ]+(https://gist%.githubusercontent%.com/.+)$")
+				end
 				if not module then
 					toDelete[message.id] = message:reply("Invalid syntax.")
 					return
@@ -1632,15 +1766,17 @@ do
 				action = action and string.lower(action)
 
 				if action == "save" then
-					if not teamListHasBeenChanged and message.author.id ~= disc.owner.id then
-						toDelete[message.id] = message:reply("Nothing has been edited in the teams' lists.")
-						return
-					end
+					if message.author.id ~= disc.owner.id then
+						if not teamListHasBeenChanged then
+							toDelete[message.id] = message:reply("Nothing has been edited in the teams' lists.")
+							return
+						end
 
-					local time = os.time()
-					if time < teamListFileTimer then
-						toDelete[message.id] = message:reply("You can only save the teams' list once per minute. [" .. (time - teamListFileTimer) .. "].")
-						return
+						local time = os.time()
+						if time < teamListFileTimer then
+							toDelete[message.id] = message:reply("You can only save the teams' list once per minute. [" .. (time - teamListFileTimer) .. "].")
+							return
+						end
 					end
 
 					local hasSaved = saveDatabase("teamList", teamList)
@@ -1688,7 +1824,7 @@ do
 					end
 
 					local isContinue, community = false
-					names = string.split(names, "%S+")
+					names = string.split(names, "%s")
 
 					local validNames, counter = { }, 0
 
@@ -1716,7 +1852,7 @@ do
 								community = string.upper(string.sub(names[name], -2))
 								name = string.toNickname(string.sub(names[name], 1, -4), true)
 
-								if not transfromage.enum.community[string.lower(community)] then
+								if not transfromage.enum.community[string.lower(community)] and message.author.id ~= disc.owner.id then
 									toDelete[message.id] = message:reply("Invalid community `" .. community .. "` for the player `" .. name .. "`.")
 									break
 								end
@@ -1853,7 +1989,123 @@ do
 				timer.setTimeoutCoro(4000 + 2500 + 500 + 500 + 2500, serverCommand["moduleteam"].f, message)
 				timer.setTimeoutCoro(4000 + 2500 + 500 + 500 + 2500 + 2500, serverCommand["clear"].f, message)
 			end
-		}
+		},
+		["module"] = {
+			owner = false,
+			auth = "462279926532276225",
+			h = "Manages the modules lists.",
+			f = function(message, parameters)
+				if message.channel.id ~= channel.modulesTool then
+					toDelete[message.id] = message:reply("You can only use this command in the <#" .. channel.modulesTool .. "> channel.")
+					return
+				end
+
+				local action = (parameters and string.match(parameters, "^(%S+)"))
+				action = action and string.lower(action)
+
+				if action == "help" then
+					toDelete[message.id] = message:reply({
+						embed = {
+							color = 0x7AC9C4,
+							title = "Modules management tool",
+							fields = {
+								[1] = {
+									name = "Add new module hosted by a public member",
+									value = "**/module add [#?MODULE_NAME] [HOSTER_NAME_WITH_DISCRIMINATOR] [IS\\_OFFICIAL] [IS\\_PRIVATE\\_MODULE]**\n- _IS\\_OFFICIAL_ → 0/1, default 0\n- _IS\\_PRIVATE\\_MODULE_ → 0/1, default 0\n\nExample: `/module add #shaman Bolodefchoco 0 1`"
+								},
+								[2] = {
+									name = "Add new module hosted by a private member",
+									value = "**/module addpriv [#?MODULE_NAME] [HOSTER_NAME_WITH_DISCRIMINATOR] [IS\\_OFFICIAL] [IS\\_PRIVATE\\_MODULE]**\n- _IS\\_OFFICIAL_ → 0/1, default 0\n- _IS\\_PRIVATE\\_MODULE_ → 0/1, default 0\n\nExample: `/module addpriv satan Meliberules#0001 0 1`"
+								},
+								[3] = {
+									name = "Remove module [to recreate with new names, for example]",
+									value = "**/module rem [#?MODULE_NAME]**\n\nExample: `/module rem #parkour`"
+								}
+							}
+						}
+					})
+				elseif action == "add" or action == "addpriv" then
+					local privHoster, name, hoster, isOfficial, isPrivate = string.match(tostring(parameters), "^add(p?r?i?v?)[\n ]+#?(%S+)[\n ]+(%S+)[\n ]*([01]?)[\n ]*([01]?)$")
+					if not name then
+						toDelete[message.id] = message:reply("Invalid syntax. Command syntax: `[add[priv]] [module_name] [hoster_name] [is_official (0)|1] [is_private (0)|1]`")
+						return
+					end
+					name = string.lower(name)
+
+					for i = 1, #modules do
+						if modules[i].name == name then
+							message:reply("Module `#" .. name .. "` already is in the list.")
+							return
+						end
+					end
+
+					hoster = string.toNickname(hoster, true)
+					if not teamList.mt[hoster] and privHoster == '' then
+						message:reply("Player `" .. hoster .. "` is not a (public) module team member.")
+						return
+					end
+
+					isOfficial = isOfficial == '1'
+					isPrivate = isPrivate == '1'
+
+					local moduleData = {
+						isOfficial = isOfficial,
+						isPrivate = isPrivate,
+						name = name,
+						hoster = hoster
+					}
+
+					-- Prevents a table.sort
+					for i = 1, #modules do
+						if modules[i].name > name then
+							table.insert(modules, i, moduleData)
+							moduleData = nil
+							break
+						end
+					end
+					if moduleData then
+						modules[#modules + 1] = moduleData
+					end
+
+					message:reply("Module `[" .. (teamList.mt[hoster] or "xx") .. "]` `#" .. name .. "` - `" .. hoster .. "` added to the list.")
+				elseif action == "rem" then
+					local name = string.match(tostring(parameters), "^rem[\n ]+#?(%S+)$")
+					if not name then
+						toDelete[message.id] = message:reply("Invalid syntax. Command syntax: `[rem] [module_name]`")
+						return
+					end
+					name = string.lower(name)
+
+					for i = 1, #modules do
+						if modules[i].name == name then
+							table.remove(modules, i)
+							message:reply("Module `#" .. name .. "` removed from the list.")
+							return
+						end
+					end
+
+					message:reply("Module `#" .. name .. "` not found.")
+				elseif message.author.id == disc.owner.id then
+					if action == "write" then -- Writes generated list in forum topics
+						-- Generates bbcode
+						local limitedBbcode = generateModulesBbcode()
+						local nonPrivBbcode = generateModulesBbcode(true)
+
+						local enOfficialBbcode = string.gsub(translate("en", nonPrivBbcode), "%[&&%]", "%%23")
+						--local enPlayerBbcode = string.gsub(translate("en", limitedBbcode), "%[&&%]", "%%23")
+						local brPlayerBbcode = string.gsub(translate("br", limitedBbcode), "%[&&%]", "%%23")
+
+						-- Update EN-Player
+						--updateModulesForumMessage(message, "EN-Player", { f = 6, t = 877916 }, enPlayerBbcode, true, false, DATA[6], DATA[7])
+						updateModulesForumMessage(message, "BR-Player", { f = 6, t = 877916 }, brPlayerBbcode, true, true, DATA[6], DATA[7])
+						updateModulesForumMessage(message, "EN-Official", { f = 6, t = 876591 }, enOfficialBbcode, true, true, DATA[10], DATA[11])
+					elseif action == "save" then
+						-- Saves in database
+						message:reply("Saved in database: " .. tostring(saveDatabase("modules", modules)))
+					end
+				end
+			end
+		},
 	}
 
 	fastReplyCommand = {
@@ -1989,9 +2241,12 @@ local executeCommand = function(isChatCommand, content, target, playerName, isDe
 end
 
 local checkFastReply = function(isChatCommand, content, target, playerName, playerCommunity)
+	if fastReplyCooldown[playerName] and (fastReplyCooldown[playerName] > os.time()) then return end
+
 	for pat, value in next, fastReplyCommand do
 		if string.find(content, pat) then
 			chooseSendMethod(isChatCommand, target, translate(playerCommunity, value, playerName))
+			fastReplyCooldown[playerName] = os.time() + FAST_REPLY_TIME
 			return true
 		end
 	end
@@ -2012,6 +2267,51 @@ disc:once("ready", function()
 	end
 
 	disc:setGame("Prefix /")
+
+	local tentative = 0
+	repeat
+		tentative = tentative + 1
+		print("Getting team list")
+		teamList = getDatabase("teamList", nil, true)
+	until teamList or tentative > 5
+	ENV.teamList = teamList
+
+	tentative = 0
+	repeat
+		tentative = tentative + 1
+		print("Getting modules")
+		modules = getDatabase("modules", nil, true)
+	until modules or tentative > 5
+	ENV.modules = modules
+
+	tentative = 0
+	repeat
+		tentative = tentative + 1
+		print("Getting commands activity")
+		commandActivity = getDatabase("shadesCommandsActivity", nil, true)
+	until commandActivity or tentative > 5
+	ENV.commandActivity = commandActivity
+
+	tentative = 0
+	repeat
+		tentative = tentative + 1
+		print("Getting mapcrew list")
+		mapcrewData = getDatabase("mapcrewMembers", nil, true)
+	until mapcrewData or tentative > 5
+
+	if not (teamList and modules and commandActivity and mapcrewData) then
+		error(table.concat({ tostring(teamList), tostring(modules), tostring(commandActivity), tostring(mapcrewData) }, "~"), transfromage.enum.errorLevel.high)
+	end
+
+	-- Normalize string indexes
+	for k, v in next, table.copy(mapcrewData) do
+		for m, n in next, v.set do
+			mapcrewData[k].set[m] = nil
+			mapcrewData[k].set[tonumber(m)] = n
+		end
+		table.sort(mapcrewData[k].arr)
+	end
+	ENV.mapcrewData = mapcrewData
 
 	timer.setTimeout(25 * 1000, function()
 		if isConnected then return end
@@ -2224,33 +2524,6 @@ tfm:once("connection", protect(function()
 		end
 	end
 
-	repeat
-		print("Getting team list")
-		teamList = getDatabase("teamList")
-	until teamList
-	ENV.teamList = teamList
-	repeat
-		print("Getting commands activity")
-		commandActivity = getDatabase("shadesCommandsActivity")
-	until commandActivity
-	ENV.commandActivity = commandActivity
-	repeat
-		print("Getting mapcrew list")
-		mapcrewData = getDatabase("mapcrewMembers")
-	until mapcrewData
-
-	-- Normalize string indexes
-	for k, v in next, table.copy(mapcrewData) do
-		for m, n in next, v.set do
-			mapcrewData[k].set[m] = nil
-			mapcrewData[k].set[tonumber(m)] = n
-		end
-		table.sort(mapcrewData[k].arr)
-	end
-	ENV.mapcrewData = mapcrewData
-
-	modTracker.init()
-
 	timer.setTimeout(20000, function()
 		if isWorking then return end
 		isWorking = true
@@ -2352,7 +2625,7 @@ tfm:on("profileLoaded", protect(function(data)
 					"\n<:tfm_cheese:458404666926039053> **Shaman cheese :** " .. data.shamanCheese ..
 
 					"\n\n<:racing:512016668038266890> **Firsts :** " .. data.firsts ..
-					"\n<:tfm_cheese:458404666926039053> **Cheeses :** " .. data.cheeses ..
+					"\n<:tfm_cheese:458404666926039053> **Cheese :** " .. data.cheeses ..
 					"\n<:bootcamp:512017071031451654> **Bootcamps :** " .. data.bootcamps ..
 
 					"\n\n<:dance:468937918115741718> **[Outfit](" .. dressroomLink(data.look) .. ")**\n\n" ..
@@ -2426,7 +2699,7 @@ tfm:on("profileLoaded", protect(function(data)
 		checkTitles[data.playerName] = nil
 	elseif checkAvailableRewards[data.playerName] then
 		local srcRewards = checkAvailableRewards[data.playerName]
-		rewardsTimer[srcRewards.playerName] = os.time() + (REWARDS_TIME * 60)
+		rewardsCooldown[srcRewards.playerName] = os.time() + (REWARDS_TIME * 60)
 
 		local commu = srcRewards.playerCommunity
 		if not translate[commu] then
@@ -2466,6 +2739,7 @@ tfm:on("profileLoaded", protect(function(data)
 		local saved = saveDatabase(code .. "&folder=bottmp", rewards, true)
 		if not saved then
 			playerData = translate(srcRewards.playerCommunity, "$norewards")
+			rewardsCooldown[srcRewards.playerName] = 0 -- user can try again
 		else
 			playerData = translate(srcRewards.playerCommunity, "$rewardscode", code)
 		end
@@ -2597,9 +2871,6 @@ tfm:on("staffList", protect(function(list)
 
 	local whisperList, discordList = (whisperTitle or title)
 	if hasOnline then
-		if isMod and modTracker.requested then
-			modTracker.receive(list)
-		end
 		p("@@@@@@@@@@@@@ staff list 2")
 
 		list = string.gsub(string.sub(list, 2), "<.->", '')
@@ -2743,13 +3014,14 @@ tfm:on("newGame", protect(function(map)
 				})
 				timer.setTimeout(20000, m.delete, m)
 			else
-				p("@@@@@@@@@@@@@ drawing ini " .. os.time())
 				head, body = http.request("POST", "https://xml-drawer.herokuapp.com/", specialHeaders.urlencoded, "xml=" .. encodeUrl(map.xml), 10000)
-				p("@@@@@@@@@@@@@ drawing end " .. os.time())
 
 				if head and head.code == 200 then
 					local tmp = string.match(os.tmpname(), "([^/]+)$") .. ".png" -- Match needed so it doesn't glitch 'attachment://'
-					local file = io.open(tmp, 'w')
+					if map.perm == 43 then
+						tmp = "SPOILER_" .. tmp
+					end
+					local file = io.open(tmp, "w+")
 					file:write(body)
 					file:flush()
 					file:close()
@@ -2761,15 +3033,13 @@ tfm:on("newGame", protect(function(map)
 						embed = {
 							color = perm[2],
 							description = (perm[3] and ("`[" .. perm[3] .. "]` ") or '') .. perm[1] .. " - **P" .. map.perm .. "**\n" .. map.code .. " - **" .. remDefaultDiscriminator(map.author) .. "**",
-							image = { url = "attachment://" .. tmp }
+							--image = { url = "attachment://" .. tmp }
 						},
 						file = tmp
 					})
-					p("@@@@@@@@@@@@@ posting end " .. os.time())
 
 					os.remove(tmp)
 				else
-					p("@@@@@@@@@@@@@ posting fail ini " .. os.time())
 					xml[map.code].message:reply({
 						content = "<@" .. xml[map.code].message.author.id .. ">",
 						embed = {
@@ -2790,7 +3060,6 @@ tfm:on("newGame", protect(function(map)
 							}
 						}
 					})
-					p("@@@@@@@@@@@@@ posting fail end " .. os.time())
 				end
 			end
 		else
@@ -2839,6 +3108,10 @@ tfm:on("blackList", protect(function(blacklist)
 		displayBlacklist[i]:reply(embed)
 	end
 	displayBlacklist = { }
+end))
+
+tfm:once("serverReboot", protect(function(t)
+	object.shadestest:send("Rebooting server!")
 end))
 
 -- Initialize
@@ -2929,11 +3202,10 @@ ENV = setmetatable({
 	githubWebhook = githubWebhook,
 	hostModule = hostModule,
 	unavailableTitles = unavailableTitles,
-	modTracker = modTracker,
 	pairsByIndexes = pairsByIndexes,
 	countryFlags = countryFlags,
 	isPlayer = isPlayer,
-	rewardsTimer = rewardsTimer,
+	rewardsCooldown = rewardsCooldown,
 	fastReplyCommand = fastReplyCommand,
 	saveActivity = function()
 		return saveActivity
@@ -2942,7 +3214,11 @@ ENV = setmetatable({
 	clock = clock,
 	totalMinutes = function()
 		return totalMinutes
-	end
+	end,
+	generateModulesBbcode = generateModulesBbcode,
+	updateModulesForumMessage = updateModulesForumMessage,
+	fastReplyCooldown = fastReplyCooldown,
+	FAST_REPLY_TIME = FAST_REPLY_TIME
 }, {
 	__index = _G
 })
