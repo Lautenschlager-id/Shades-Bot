@@ -1762,7 +1762,7 @@ do
 					return
 				end
 
-				local action = (parameters and string.match(parameters, "^(%S+)$"))
+				local action = (parameters and string.match(parameters, "^(%S+)"))
 				action = action and string.lower(action)
 
 				if action == "save" then
@@ -1796,6 +1796,26 @@ do
 
 					teamListHasBeenChanged = false
 					teamListFileTimer = os.time() + 65
+				elseif action == "rename" then
+					local oldName, newName = string.match(tostring(parameters), "^rename[\n ]+(%S+)[\n ]+(%S+)$")
+					if not oldName then
+						toDelete[message.id] = message:reply("Invalid syntax. Command syntax: `rename [old_name] [new_name]`")
+						return
+					end
+
+					oldName = string.toNickname(oldName, true)
+					newName = string.toNickname(newName, true)
+
+					local community
+					for teamName, list in next, teamList do
+						community = list[oldName]
+						if community then
+							list[oldName] = nil
+							list[newName] = community
+
+							message:reply("The player `" .. oldName .. "` has been renamed to `" .. newName .. "` in team `" .. teamName .. "`.")
+						end
+					end
 				else
 					local teamName, method, names = string.match(tostring(parameters), "^(%S+)[\n ]+(...)[\n ]+(.+)")
 					if not teamName then
@@ -2020,6 +2040,10 @@ do
 								[3] = {
 									name = "Remove module [to recreate with new names, for example]",
 									value = "**/module rem [#?MODULE_NAME]**\n\nExample: `/module rem #parkour`"
+								},
+								[4] = {
+									name = "Rename a member",
+									value = "**/module rename [old_name] [new_name]**\n\nExample: `/module rename Bolodefchoco Bolodefchoco#0010`"
 								}
 							}
 						}
@@ -2085,6 +2109,27 @@ do
 					end
 
 					message:reply("Module `#" .. name .. "` not found.")
+				elseif action == "rename" then
+					local oldName, newName = string.match(tostring(parameters), "^rename[\n ]+(%S+)[\n ]+(%S+)$")
+					if not oldName then
+						toDelete[message.id] = message:reply("Invalid syntax. Command syntax: `[rename] [old_name] [new_name]`")
+						return
+					end
+					oldName = string.toNickname(oldName, true)
+					newName = string.toNickname(newName, true)
+
+					local replaced = false
+					for i = 1, #modules do
+						if modules[i].hoster == oldName then
+							replaced = true
+							modules[i].hoster = newName
+							message:reply("Updated `#" .. modules[i].name .. "`'s hoster to `" .. newName .. "`.")
+						end
+					end
+
+					if not replaced then
+						message:reply("No modules found to `" .. oldName .. "`.")
+					end
 				elseif message.author.id == disc.owner.id then
 					if action == "write" then -- Writes generated list in forum topics
 						-- Generates bbcode
