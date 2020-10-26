@@ -22,6 +22,7 @@ return {
 	rewards = "Generates a code to be used in [fiftysol.github.io/rewards], where you can see all rewards a player still can obtain in game. Accepts a nickname as parameter.",
 	mapcrew = "Displays the list of online Mapcrew and their respective review categories.",
 	hbgcolor = "Sends the background color of Transformice.",
+	hnewtitles = "Displays the latest 5 titles added to the game.",
 	-- Data
 	doc = "Lua documentation: %s", -- URL
 	app = "Apply to '%s': %s", -- Name, URL
@@ -41,6 +42,7 @@ return {
 	nomapcrew = "There aren't any Map Crew online. :(",
 	bgcolor = "The background color of Transformice is: %s",
 	outfit = "%s's outfit: %s", -- Name, URL
+	newtitles = "The latest 5 titles are: %s",
 	-- Extra
 	onteam = "Online%s members: %s", -- Name of the team (prefixed with a space), List
 	noteam = "No%s online members.", -- Name of the team (prefixed with a space)
