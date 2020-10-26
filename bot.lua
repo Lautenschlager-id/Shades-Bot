@@ -1,3 +1,6 @@
+local db_url = "https://discorddb.000webhostapp.com/" -- "http://fsoldb.rf.gd/"
+local DB_COOKIES_N_BLAME_INFINITYFREE
+
 -- Consts
 local CHAR_LIM = 255
 local CHAT_MSG_LIM = 3
@@ -57,7 +60,7 @@ end
 string.split2 = function(str, pat)
 	local out, counter = { }, 0
 
-	for v in string_gmatch(str, pat) do
+	for v in string.gmatch(str, pat) do
 		counter = counter + 1
 		out[counter] = tonumber(v) or v
 	end
@@ -652,7 +655,8 @@ local printf = function(...)
 end
 
 local getDatabase = function(fileName, isRaw, ignoreError)
-	local _, body = http.request("GET", "http://discorddb.000webhostapp.com/get?k=" .. DATA[9] .. "&e=json&f=" .. fileName)
+	local _, body = http.request("GET", db_url .. "get?k=" .. DATA[9] .. "&e=json&f=" .. fileName, DB_COOKIES_N_BLAME_INFINITYFREE)
+
 	if not isRaw then
 		body = json.decode(body)
 	end
@@ -670,7 +674,7 @@ saveDatabase = function(fileName, data, isRaw)
 	end
 
 	p('Call save to ' .. fileName)
-	local _, body = http.request("POST", "http://discorddb.000webhostapp.com/set?k=" .. DATA[9] .. "&e=json&f=" .. fileName, nil--[[specialHeaders.json]], data)
+	local _, body = http.request("POST", db_url .. "set?k=" .. DATA[9] .. "&e=json&f=" .. fileName, DB_COOKIES_N_BLAME_INFINITYFREE--[[nil--specialHeaders.json]], data)
 	p(body)
 	return body == "true"
 end
@@ -1410,6 +1414,27 @@ do
 
 				return result
 			end
+		},
+		["newtitles"] = {
+			h = "$hnewtitles",
+			f = function(playerCommunity, isDebugging, playerName, parameters)
+				playerCommunity = transfromage.enum.language[(playerCommunity or "en")]
+				if not translate[playerCommunity] then
+					playerCommunity = "en"
+				end
+
+				local latestTitles, index, t = { }, 0
+				for i = 999, 400, -1 do
+					t = transfromage.translation.get(playerCommunity, "T_" .. i)
+					if t then
+						index = index + 1
+						latestTitles[index] = string.format("[%s] «%s»", i, t[1] or t)
+
+						if index == 5 then break end
+					end
+				end
+				return translate(playerCommunity, "$newtitles", table.concat(latestTitles, " - "))
+			end
 		}
 	}
 	serverCommand = { -- message, param
@@ -1812,6 +1837,7 @@ do
 						if community then
 							list[oldName] = nil
 							list[newName] = community
+							teamListHasBeenChanged = true
 
 							message:reply("The player `" .. oldName .. "` has been renamed to `" .. newName .. "` in team `" .. teamName .. "`.")
 						end
@@ -1872,7 +1898,7 @@ do
 								community = string.upper(string.sub(names[name], -2))
 								name = string.toNickname(string.sub(names[name], 1, -4), true)
 
-								if not transfromage.enum.community[string.lower(community)] and message.author.id ~= disc.owner.id then
+								if not transfromage.enum.language[string.lower(community)] and message.author.id ~= disc.owner.id then
 									toDelete[message.id] = message:reply("Invalid community `" .. community .. "` for the player `" .. name .. "`.")
 									break
 								end
@@ -2137,12 +2163,12 @@ do
 						local nonPrivBbcode = generateModulesBbcode(true)
 
 						local enOfficialBbcode = string.gsub(translate("en", nonPrivBbcode), "%[&&%]", "%%23")
-						--local enPlayerBbcode = string.gsub(translate("en", limitedBbcode), "%[&&%]", "%%23")
+						local enPlayerBbcode = string.gsub(translate("en", limitedBbcode), "%[&&%]", "%%23")
 						local brPlayerBbcode = string.gsub(translate("br", limitedBbcode), "%[&&%]", "%%23")
 
 						-- Update EN-Player
-						--updateModulesForumMessage(message, "EN-Player", { f = 6, t = 877916 }, enPlayerBbcode, true, false, DATA[6], DATA[7])
-						updateModulesForumMessage(message, "BR-Player", { f = 6, t = 877916 }, brPlayerBbcode, true, true, DATA[6], DATA[7])
+						updateModulesForumMessage(message, "EN-Player", { f = 6, t = 892566 }, enPlayerBbcode, true, false, DATA[6], DATA[7])
+						updateModulesForumMessage(message, "BR-Player", { f = 6, t = 877916 }, brPlayerBbcode, false, true, DATA[6], DATA[7])
 						updateModulesForumMessage(message, "EN-Official", { f = 6, t = 876591 }, enOfficialBbcode, true, true, DATA[10], DATA[11])
 					elseif action == "save" then
 						-- Saves in database
@@ -2154,7 +2180,7 @@ do
 	}
 
 	fastReplyCommand = {
-		["LUA"] = "$upperlua"
+		["%f[%w]L%W*U%W*A%W*%f[%W]"] = "$upperlua"
 	}
 end
 
@@ -2204,7 +2230,7 @@ local userAntiSpam = function(src, playerName, playerCommunity)
 	end
 end
 
-local chooseSendMethod = function(chatCond, target, returnValue, countByByte)
+local chooseSendMethod = function(chatCond, target, returnValue, counutByByte)
 	if chatCond then
 		tfm:sendChatMessage(target, returnValue, nil, countByByte)
 	else
@@ -2920,7 +2946,7 @@ tfm:on("staffList", protect(function(list)
 
 		list = string.gsub(string.sub(list, 2), "<.->", '')
 
-		list = string.gsub(list, "%[..%]", function(commu)
+		list = string.gsub(list, "%[.-%]", function(commu)
 			return "`" .. string.upper(commu) .. "`"
 		end)
 
@@ -3160,7 +3186,35 @@ tfm:once("serverReboot", protect(function(t)
 end))
 
 -- Initialize
-tfm:setCommunity(transfromage.enum.community.sk)
+tfm:setLanguage(transfromage.enum.language.sk)
+--[=[
+coroutine.wrap(function()
+	local _, aes = http.request("GET", "http://fsoldb.rf.gd/aes.js")
+
+	local _, html = http.request("GET", "http://fsoldb.rf.gd/")
+	local codes = { }
+	for code in html:gmatch("toNumbers%(\"(.-)\"%)") do
+		codes[#codes + 1] = code
+	end
+
+	local js = 'function toNumbers(d){var e=[];d.replace(/(..)/g,function(d){e.push(parseInt(d,16))});return e}function toHex(){for(var d=[],d=1==arguments.length&&arguments[0].constructor==Array?arguments[0]:arguments,e="",f=0;f<d.length;f++)e+=(16>d[f]?"0":"")+d[f].toString(16);return e.toLowerCase()}'
+	js = js .. string.format('var a=toNumbers("%s"),b=toNumbers("%s"),c=toNumbers("%s");print("__test="+toHex(slowAES.decrypt(c,2,a,b))+"; expires=Thu, 31-Dec-37 23:55:55 GMT; path=/");', table.unpack(codes))
+	js = aes .. "\n" .. js
+
+	local _, result = http.request("POST", "https://rextester.com/rundotnet/api", {
+		{ "content-type", "application/x-www-form-urlencoded" }
+	}, "LanguageChoiceWrapper=17&EditorChoiceWrapper=1&LayoutChoiceWrapper=1\z
+		&Program="..encodeUrl(js).."&Input=&\zPrivacy=&PrivacyUsers=&Title=&SavedOutput=\z
+		&WholeError=&WholeWarning=&StatsToSave=&CodeGuid=&IsInEditMode=False&IsLive=False")
+
+	DB_COOKIES_N_BLAME_INFINITYFREE = { { "Cookie", json.decode(result).Result } }
+
+	p(DB_COOKIES_N_BLAME_INFINITYFREE)
+
+	disc:run(DATA[5])
+	DATA[5] = nil
+end)()
+]=]
 disc:run(DATA[5])
 DATA[5] = nil
 
@@ -3263,7 +3317,10 @@ ENV = setmetatable({
 	generateModulesBbcode = generateModulesBbcode,
 	updateModulesForumMessage = updateModulesForumMessage,
 	fastReplyCooldown = fastReplyCooldown,
-	FAST_REPLY_TIME = FAST_REPLY_TIME
+	FAST_REPLY_TIME = FAST_REPLY_TIME,
+
+	DB_COOKIES_N_BLAME_INFINITYFREE = DB_COOKIES_N_BLAME_INFINITYFREE,
+	db_url = db_url
 }, {
 	__index = _G
 })
