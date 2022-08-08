@@ -7,22 +7,27 @@ return {
 	help = "Displays the available commands / the commands descriptions.",
 	info = "Displays cool bot informations.",
 	helper = "Displays the Shades Helpers that are online on Discord.",
-	dress = "Sends a link of your/someone's outfit. Accepts a nickname as parameter.",
+	dress = "Sends a link of your/someone's outfit. Accepts a nickname as parameter. Use with /dressing.",
 	mt = "Displays the online public Module Team members.",
 	fs = "Displays the online public Fashion Squad members.",
 	fc = "Displays the online Funcorp members.",
 	sent = "Displays the online Sentinels.",
 	sh = "Displays the online Shades Helpers.",
+	fla = "Displays the online public Flash Squad members.",
+	bot = "Displays the online public Bots",
+	--evt = "Displays the online public Event Squad members",
 	make = "Shows how to make a bot with Transfromage.",
 	nocmd = "Command '%s' not found. :s", -- Name
 	hlist = "Type '%s command_name' or '%scommand_name ?' to learn more. Available Commands → %s", -- "help"
 	title = "Checks the next titles you or someone is about to unlock. Accepts a nickname as parameter.",
+	--hrank = "The command ,rank has been removed due to internal issues of Cheeseformice.",
 	hrank = "Displays the position of a player in CheeseForMice's leaderboard. Accepts a nickname as parameter.",
 	inv = "Sends the invitation link to join the 'Fifty Shades of Lua' discord server.",
 	rewards = "Generates a code to be used in [fiftysol.github.io/rewards], where you can see all rewards a player still can obtain in game. Accepts a nickname as parameter.",
 	mapcrew = "Displays the list of online Mapcrew and their respective review categories.",
 	hbgcolor = "Sends the background color of Transformice.",
 	hnewtitles = "Displays the latest 5 titles added to the game.",
+	luaevent = "Displays the current loading time of Lua events.",
 	-- Data
 	doc = "Lua documentation: %s", -- URL
 	app = "Apply to '%s': %s", -- Name, URL
@@ -43,6 +48,7 @@ return {
 	bgcolor = "The background color of Transformice is: %s",
 	outfit = "%s's outfit: %s", -- Name, URL
 	newtitles = "The latest 5 titles are: %s",
+	luaEventTime = "Lua events are currently loading every [%s] minutes.",
 	-- Extra
 	onteam = "Online%s members: %s", -- Name of the team (prefixed with a space), List
 	noteam = "No%s online members.", -- Name of the team (prefixed with a space)
@@ -68,5 +74,6 @@ return {
 	bbcodeLevel = "Level",
 	bbcodeHoster = "Hoster",
 	bbcodeOfficial = "official",
-	bbcodeSemiOfficial = "semi-official"
+	bbcodeSemiOfficial = "semi-official",
+	bbcodeDisabled = "disabled"
 }
