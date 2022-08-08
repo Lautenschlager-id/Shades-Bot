@@ -13,6 +13,7 @@ return {
 	[452] = true,
 	[453] = true,
 	[454] = true,
+	[534] = true,
 	-- Meetups
 	[252] = true,
 	-- Others

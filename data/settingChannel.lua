@@ -1,0 +1,6 @@
+return {
+	discussion = "544935729508253717",
+	memberList = "544936174544748587",
+	bridgeVon = "930925530281279489",
+	bridgeVonCafe = "955624252760023090"
+}
